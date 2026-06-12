@@ -259,6 +259,114 @@ function PixelCat({ awake, theme }) {
   );
 }
 
+/* ---------- companion bubble tea cup ---------- */
+function BubbleTea({ progress, finished }) {
+  const fillPct = Math.min(Math.max(progress, 0), 1) * 100;
+  const showPearls = progress >= 0.5 || finished;
+
+  const pearls = [
+    { left: "16%", delay: "0s" },
+    { left: "36%", delay: "0.3s" },
+    { left: "56%", delay: "0.6s" },
+    { left: "26%", delay: "0.9s" },
+    { left: "47%", delay: "1.2s" },
+    { left: "66%", delay: "1.5s" },
+  ];
+
+  return (
+    <div className="relative flex flex-col items-center" style={{ width: 64 }} aria-hidden="true">
+      {/* straw — punches in when the timer finishes */}
+      {finished && (
+        <>
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: 9,
+              height: 64,
+              top: -34,
+              left: "58%",
+              background: "linear-gradient(to right, #C89F87, #B98D74)",
+              transform: "rotate(9deg)",
+              transformOrigin: "bottom center",
+              zIndex: 3,
+              animation: "strawPunch 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+            }}
+          />
+          <span
+            className="absolute select-none"
+            style={{ top: -40, left: "66%", fontSize: 18, zIndex: 4, animation: "popSparkle 1.1s ease-out forwards" }}
+          >
+            ✨
+          </span>
+        </>
+      )}
+
+      {/* domed lid */}
+      <div
+        className="rounded-t-full"
+        style={{
+          width: 50,
+          height: 14,
+          background: "#FFE9F0",
+          border: "2px solid rgba(74, 62, 61, 0.25)",
+          borderBottom: "none",
+          zIndex: 2,
+        }}
+      />
+      <div style={{ width: 58, height: 4, background: "#F6D3DE", borderRadius: 3, border: "1.5px solid rgba(74,62,61,0.2)", zIndex: 2 }} />
+
+      {/* clear cup */}
+      <div
+        className="relative overflow-hidden rounded-b-2xl"
+        style={{
+          width: 52,
+          height: 78,
+          background: "rgba(255, 255, 255, 0.45)",
+          border: "2px solid rgba(74, 62, 61, 0.25)",
+          borderTop: "none",
+          boxShadow: "inset 3px 0 6px -3px rgba(255,255,255,0.9)",
+        }}
+      >
+        {/* strawberry milk — fills bottom-up, crawling smoothly each second */}
+        <div
+          className="absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-linear"
+          style={{
+            height: `${fillPct}%`,
+            background: "linear-gradient(to top, #F7B8CC 0%, #F9C9D9 55%, #FBDCE7 100%)",
+          }}
+        >
+          {/* creamy milk line on the surface */}
+          <div className="absolute top-0 left-0 right-0" style={{ height: 4, background: "rgba(255,255,255,0.7)", borderRadius: 2 }} />
+        </div>
+
+        {/* boba pearls — drop in one by one at 50% */}
+        {showPearls &&
+          pearls.map((p, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                width: 8,
+                height: 8,
+                left: p.left,
+                bottom: 3 + (i % 2) * 7,
+                background: "radial-gradient(circle at 32% 28%, #7A5240, #4A3328)",
+                animation: `pearlDrop 0.55s cubic-bezier(0.34, 1.3, 0.64, 1) ${p.delay} both`,
+              }}
+            />
+          ))}
+
+        {/* glass shine */}
+        <div className="absolute pointer-events-none" style={{ top: 4, left: 5, width: 6, height: "82%", background: "rgba(255,255,255,0.5)", borderRadius: 4 }} />
+      </div>
+
+      <p className="text-[9px] font-bold mt-1.5 select-none" style={{ opacity: 0.5, letterSpacing: "0.04em" }}>
+        strawberry milk
+      </p>
+    </div>
+  );
+}
+
 /* ---------- "Window to the Outside" — synced to local time ---------- */
 function OutsideWindow({ phase, theme }) {
   const p = WINDOW_PHASES[phase];
@@ -725,6 +833,9 @@ export default function CozyPomodoro() {
         @keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes breatheInText { 0% { opacity: 0; } 8% { opacity: 1; } 40% { opacity: 1; } 52% { opacity: 0; } 100% { opacity: 0; } }
         @keyframes breatheOutText { 0% { opacity: 0; } 52% { opacity: 0; } 60% { opacity: 1; } 92% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes pearlDrop { 0% { transform: translateY(-70px) scale(0.7); opacity: 0; } 55% { opacity: 1; } 78% { transform: translateY(3px) scale(1.08); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+        @keyframes strawPunch { 0% { transform: translateY(-50px) rotate(9deg); opacity: 0; } 65% { transform: translateY(7px) rotate(9deg); opacity: 1; } 100% { transform: translateY(0) rotate(9deg); opacity: 1; } }
+        @keyframes popSparkle { 0% { transform: scale(0); opacity: 0; } 35% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(0.8) translateY(-12px); opacity: 0; } }
         button:focus-visible, input:focus-visible { outline: 3px solid rgba(244, 167, 185, 0.7); outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
@@ -796,7 +907,11 @@ export default function CozyPomodoro() {
             })}
           </nav>
 
-          <PixelCat awake={catAwake} theme={theme} />
+          {/* illustration row: sleeping cat + companion bubble tea */}
+          <div className="flex items-end justify-center gap-2 sm:gap-5">
+            <PixelCat awake={catAwake} theme={theme} />
+            <BubbleTea progress={progress} finished={finished} />
+          </div>
 
           <div
             className="rounded-3xl px-6 py-6 mb-5 text-center"
@@ -818,7 +933,7 @@ export default function CozyPomodoro() {
             </div>
 
             <div className="mt-5 h-2.5 w-full rounded-full overflow-hidden" style={{ background: theme.soft, transition: "background 700ms ease" }}>
-              <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: theme.bar, transition: "width 900ms linear, background 700ms ease" }} />
+              <div className="h-full rounded-full transition-all duration-1000 ease-linear" style={{ width: `${progress * 100}%`, background: theme.bar }} />
             </div>
 
             <p className="mt-3 text-sm font-medium" style={{ opacity: 0.75 }}>
