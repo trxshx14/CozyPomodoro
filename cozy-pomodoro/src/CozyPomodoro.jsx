@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, RotateCcw, Plus, Trash2, Flower2, Coffee, Moon, Sparkles } from "lucide-react";
+import { Play, Pause, RotateCcw, Plus, Trash2, Flower2, Coffee, Moon, Sparkles, Wind, X } from "lucide-react";
 
 /* ============================================================
-   COZY POMODORO — pastel / Sanrio-inspired focus timer
-   Single-file React app. Tailwind for layout, inline styles
-   for the custom pastel palette (no Tailwind config needed).
+   COZY POMODORO v2 — full-screen pastel focus space
+   New in v2:
+   • Full-viewport responsive layout (2-column on desktop)
+   • "Window to the Outside" — scenery synced to local time
+     (sunrise / midday / twilight / night)
+   • Toggleable Breathing Guide overlay with rhythmic
+     petal/star particles
    ============================================================ */
 
 const DURATIONS = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
@@ -23,6 +27,7 @@ const THEMES = {
     ground: "#F3C2CE",
     groundDeep: "#EBADBD",
     chip: "#FFDFD3",
+    particle: "🌸",
   },
   short: {
     label: "Short Break",
@@ -37,6 +42,7 @@ const THEMES = {
     ground: "#A8DCCB",
     groundDeep: "#92CFBC",
     chip: "#FFF2CC",
+    particle: "🍃",
   },
   long: {
     label: "Long Break",
@@ -51,18 +57,80 @@ const THEMES = {
     ground: "#C5B3E0",
     groundDeep: "#B49FD6",
     chip: "#FFDFD3",
+    particle: "⭐",
   },
 };
 
 const FONT_STACK =
   'ui-rounded, "Hiragino Maru Gothic ProN", "Quicksand", "Varela Round", "Comfortaa", "Nunito", "Segoe UI", system-ui, sans-serif';
 
+/* ---------- time-of-day phases for the window ---------- */
+function getDayPhase(hour) {
+  if (hour >= 5 && hour < 9) return "sunrise";
+  if (hour >= 9 && hour < 17) return "midday";
+  if (hour >= 17 && hour < 20) return "twilight";
+  return "night";
+}
+
+const WINDOW_PHASES = {
+  sunrise: {
+    skyTop: "#FFD3B8",
+    skyMid: "#FFE4CA",
+    skyBottom: "#FFF1DC",
+    hillsBack: "#EDB6C4",
+    hillsFront: "#E09FB2",
+    greeting: "good morning",
+    emoji: "🌅",
+  },
+  midday: {
+    skyTop: "#B5DFF5",
+    skyMid: "#CFEBFA",
+    skyBottom: "#E8F6FE",
+    hillsBack: "#B6DFC0",
+    hillsFront: "#9CD3AC",
+    greeting: "hello, sunshine",
+    emoji: "🌼",
+  },
+  twilight: {
+    skyTop: "#B79BD3",
+    skyMid: "#E0AFC3",
+    skyBottom: "#FFD0B5",
+    hillsBack: "#8E72A8",
+    hillsFront: "#76598F",
+    greeting: "golden hour",
+    emoji: "🌇",
+  },
+  night: {
+    skyTop: "#2C2950",
+    skyMid: "#3D3868",
+    skyBottom: "#534B85",
+    hillsBack: "#2A2647",
+    hillsFront: "#211D3A",
+    greeting: "cozy night",
+    emoji: "🌙",
+    stars: true,
+  },
+};
+
+const STAR_FIELD = [
+  { left: "12%", top: "14%", d: "0s", s: 3 },
+  { left: "26%", top: "30%", d: "0.8s", s: 2 },
+  { left: "38%", top: "10%", d: "1.6s", s: 2.5 },
+  { left: "52%", top: "24%", d: "0.4s", s: 3 },
+  { left: "64%", top: "12%", d: "2.1s", s: 2 },
+  { left: "78%", top: "28%", d: "1.2s", s: 2.5 },
+  { left: "88%", top: "16%", d: "0.6s", s: 2 },
+  { left: "18%", top: "44%", d: "1.9s", s: 2 },
+  { left: "70%", top: "42%", d: "0.2s", s: 2.5 },
+  { left: "44%", top: "38%", d: "1.4s", s: 2 },
+];
+
 /* ---------- gentle Web Audio chime (no assets needed) ---------- */
 function playChime() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6 — soft arpeggio
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -77,7 +145,6 @@ function playChime() {
       osc.start(t);
       osc.stop(t + 1.5);
     });
-    // tiny "bubble pop" tail for extra coziness
     const pop = ctx.createOscillator();
     const pg = ctx.createGain();
     pop.type = "triangle";
@@ -92,23 +159,22 @@ function playChime() {
     pop.stop(ctx.currentTime + 1.05);
     setTimeout(() => ctx.close(), 2500);
   } catch (e) {
-    // Audio not available — fail silently, the UI still celebrates.
+    /* audio unavailable — UI still celebrates */
   }
 }
 
-/* ---------- pixel cat illustration (SVG, crisp edges) ---------- */
+/* ---------- pixel cat illustration ---------- */
 function PixelCat({ awake, theme }) {
-  const fur = "#F6CDB8"; // warm peach fur
+  const fur = "#F6CDB8";
   const furDark = "#EBB79D";
-  const inner = "#F9A8C0"; // ear pink
+  const inner = "#F9A8C0";
   const dark = theme.text;
   const blush = "#F8A8B8";
 
   return (
-    <div className="relative flex items-end justify-center" style={{ height: 120 }}>
-      {/* floating z's while sleeping */}
+    <div className="relative flex items-end justify-center" style={{ height: 116 }}>
       {!awake && (
-        <div className="absolute pointer-events-none" style={{ top: 0, right: "28%" }}>
+        <div className="absolute pointer-events-none" style={{ top: 0, right: "30%" }}>
           {[0, 1, 2].map((i) => (
             <span
               key={i}
@@ -126,82 +192,66 @@ function PixelCat({ awake, theme }) {
           ))}
         </div>
       )}
-
-      {/* sparkles when awake / celebrating */}
       {awake && (
         <>
           {[
-            { left: "22%", top: 6, delay: "0s", size: 18 },
-            { left: "72%", top: 0, delay: "0.4s", size: 22 },
+            { left: "24%", top: 6, delay: "0s", size: 18 },
+            { left: "70%", top: 0, delay: "0.4s", size: 22 },
             { left: "60%", top: 30, delay: "0.9s", size: 14 },
-            { left: "32%", top: 34, delay: "1.3s", size: 15 },
+            { left: "34%", top: 34, delay: "1.3s", size: 15 },
           ].map((s, i) => (
             <span
               key={i}
               className="absolute select-none pointer-events-none"
-              style={{
-                left: s.left,
-                top: s.top,
-                fontSize: s.size,
-                animation: `sparkleTwinkle 1.8s ease-in-out ${s.delay} infinite`,
-              }}
+              style={{ left: s.left, top: s.top, fontSize: s.size, animation: `sparkleTwinkle 1.8s ease-in-out ${s.delay} infinite` }}
             >
               ✨
             </span>
           ))}
         </>
       )}
-
       <svg
         viewBox="0 0 20 14"
-        width="170"
-        height="119"
-        style={{ shapeRendering: "crispEdges", animation: awake ? "happyBounce 1.6s ease-in-out infinite" : "sleepBreathe 3.2s ease-in-out infinite" }}
+        width="164"
+        height="115"
+        style={{
+          shapeRendering: "crispEdges",
+          animation: awake ? "happyBounce 1.6s ease-in-out infinite" : "sleepBreathe 3.2s ease-in-out infinite",
+        }}
         aria-label={awake ? "A happy pixel cat surrounded by sparkles" : "A sleeping pixel cat"}
         role="img"
       >
-        {/* ears */}
         <rect x="4" y={awake ? 1 : 2} width="2" height="2" fill={furDark} />
         <rect x="12" y={awake ? 1 : 2} width="2" height="2" fill={furDark} />
         <rect x="4.5" y={awake ? 1.6 : 2.6} width="1" height="1" fill={inner} />
         <rect x="12.5" y={awake ? 1.6 : 2.6} width="1" height="1" fill={inner} />
-        {/* head */}
-        <rect x="3" y={awake ? 3 : 4} width="12" height="6" rx="0" fill={fur} />
-        {/* body loaf */}
+        <rect x="3" y={awake ? 3 : 4} width="12" height="6" fill={fur} />
         <rect x="2" y="8" width="16" height="5" fill={fur} />
         <rect x="2" y="12" width="16" height="1" fill={furDark} />
-        {/* tail */}
         <rect x="17" y="9" width="2" height="1.4" fill={furDark}>
           <animate attributeName="y" values="9;8.4;9" dur="1.4s" repeatCount="indefinite" />
         </rect>
-        {/* paws tucked */}
         <rect x="4" y="11.4" width="2.4" height="1.2" fill={furDark} />
         <rect x="11.6" y="11.4" width="2.4" height="1.2" fill={furDark} />
-
         {awake ? (
           <>
-            {/* open eyes with shine */}
             <rect x="6" y="5" width="1.4" height="1.8" fill={dark} />
             <rect x="10.6" y="5" width="1.4" height="1.8" fill={dark} />
             <rect x="6.3" y="5.3" width="0.5" height="0.5" fill="#FFFFFF" />
             <rect x="10.9" y="5.3" width="0.5" height="0.5" fill="#FFFFFF" />
-            {/* happy mouth */}
             <rect x="8.4" y="7.2" width="1.2" height="0.5" fill={dark} />
             <rect x="8.1" y="6.9" width="0.4" height="0.4" fill={dark} />
             <rect x="9.5" y="6.9" width="0.4" height="0.4" fill={dark} />
           </>
         ) : (
           <>
-            {/* peacefully closed eyes */}
             <rect x="5.8" y="6" width="1.8" height="0.5" fill={dark} />
             <rect x="10.4" y="6" width="1.8" height="0.5" fill={dark} />
             <rect x="8.5" y="7.1" width="1" height="0.4" fill={dark} opacity="0.6" />
           </>
         )}
-        {/* blush */}
         <rect x="4.6" y="6.8" width="1.2" height="0.7" fill={blush} opacity="0.8" />
         <rect x="12.2" y="6.8" width="1.2" height="0.7" fill={blush} opacity="0.8" />
-        {/* whiskers */}
         <rect x="2.2" y="6.2" width="1.4" height="0.35" fill={dark} opacity="0.45" />
         <rect x="14.4" y="6.2" width="1.4" height="0.35" fill={dark} opacity="0.45" />
       </svg>
@@ -209,16 +259,204 @@ function PixelCat({ awake, theme }) {
   );
 }
 
+/* ---------- "Window to the Outside" — synced to local time ---------- */
+function OutsideWindow({ phase, theme }) {
+  const p = WINDOW_PHASES[phase];
+
+  return (
+    <div>
+      <div
+        className="relative overflow-hidden rounded-3xl"
+        style={{
+          height: 190,
+          border: "10px solid #EFE3D3",
+          boxShadow: "0 14px 34px -16px rgba(120,90,80,0.35), 0 0 0 1px #E2D3BE, 0 2px 0 rgba(255,255,255,0.8) inset",
+          background: `linear-gradient(to bottom, ${p.skyTop} 0%, ${p.skyMid} 55%, ${p.skyBottom} 100%)`,
+          transition: "background 1200ms ease",
+        }}
+        role="img"
+        aria-label={`Window showing a ${phase} scene`}
+      >
+        {/* stars (night only) */}
+        {p.stars &&
+          STAR_FIELD.map((s, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                left: s.left,
+                top: s.top,
+                width: s.s,
+                height: s.s,
+                background: "#FFF6D8",
+                animation: `starTwinkle 2.8s ease-in-out ${s.d} infinite`,
+              }}
+            />
+          ))}
+
+        {/* sun / moon */}
+        {phase === "night" ? (
+          <div className="absolute" style={{ top: 22, right: 30 }}>
+            <div className="relative" style={{ width: 30, height: 30 }}>
+              <div className="absolute inset-0 rounded-full" style={{ background: "#F6EFC9", boxShadow: "0 0 18px 4px rgba(246,239,201,0.35)" }} />
+              <div className="absolute rounded-full" style={{ top: -3, right: -4, width: 24, height: 24, background: p.skyTop }} />
+            </div>
+          </div>
+        ) : (
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: phase === "midday" ? 34 : 40,
+              height: phase === "midday" ? 34 : 40,
+              background: phase === "sunrise" ? "#FFC78E" : phase === "twilight" ? "#FFAE85" : "#FFE89E",
+              boxShadow: "0 0 24px 8px rgba(255, 220, 150, 0.45)",
+              left: phase === "sunrise" ? "14%" : phase === "midday" ? "44%" : "auto",
+              right: phase === "twilight" ? "12%" : "auto",
+              top: phase === "midday" ? 16 : phase === "sunrise" ? 64 : 70,
+              transition: "all 1200ms ease",
+            }}
+          />
+        )}
+
+        {/* drifting clouds (soft, hidden at night) */}
+        {!p.stars && (
+          <>
+            <div className="absolute" style={{ top: 26, left: 0, animation: "cloudDrift 30s linear infinite" }}>
+              <div style={{ width: 44, height: 12, borderRadius: 8, background: "rgba(255,255,255,0.8)", boxShadow: "14px -7px 0 rgba(255,255,255,0.8)" }} />
+            </div>
+            <div className="absolute" style={{ top: 52, left: 0, animation: "cloudDrift 44s linear 10s infinite" }}>
+              <div style={{ width: 32, height: 10, borderRadius: 7, background: "rgba(255,255,255,0.6)" }} />
+            </div>
+          </>
+        )}
+
+        {/* rolling hills */}
+        <div
+          className="absolute rounded-t-full"
+          style={{ bottom: -34, left: "-18%", width: "80%", height: 84, background: p.hillsBack, transition: "background 1200ms ease" }}
+        />
+        <div
+          className="absolute rounded-t-full"
+          style={{ bottom: -40, right: "-20%", width: "85%", height: 86, background: p.hillsFront, transition: "background 1200ms ease" }}
+        />
+        {/* tiny pixel house on the hill */}
+        <div className="absolute" style={{ bottom: 30, left: "22%" }}>
+          <div style={{ width: 18, height: 12, background: "#FBF3E4" }} />
+          <div style={{ position: "absolute", top: -7, left: -2, width: 0, height: 0, borderLeft: "11px solid transparent", borderRight: "11px solid transparent", borderBottom: "8px solid #E8A48F" }} />
+          <div style={{ position: "absolute", top: 4, left: 6, width: 5, height: 5, background: phase === "night" || phase === "twilight" ? "#FFE89E" : "#C9B79C", boxShadow: phase === "night" ? "0 0 6px 2px rgba(255,232,158,0.6)" : "none" }} />
+        </div>
+
+        {/* window cross frame */}
+        <div className="absolute pointer-events-none" style={{ left: "50%", top: 0, bottom: 0, width: 7, marginLeft: -3.5, background: "#EFE3D3", boxShadow: "0 0 0 1px #E2D3BE" }} />
+        <div className="absolute pointer-events-none" style={{ top: "48%", left: 0, right: 0, height: 7, background: "#EFE3D3", boxShadow: "0 0 0 1px #E2D3BE" }} />
+        {/* glass shine */}
+        <div className="absolute pointer-events-none" style={{ top: -20, left: "8%", width: 34, height: "150%", background: "rgba(255,255,255,0.18)", transform: "rotate(18deg)" }} />
+      </div>
+
+      {/* windowsill with a tiny plant */}
+      <div className="relative mx-2 rounded-b-2xl flex items-center justify-end pr-5" style={{ height: 16, background: "#E7D8C3", boxShadow: "0 6px 14px -8px rgba(120,90,80,0.4)" }}>
+        <span className="select-none" style={{ fontSize: 15, marginTop: -16 }} aria-hidden="true">
+          🪴
+        </span>
+      </div>
+
+      <p className="text-center text-xs font-semibold mt-2.5" style={{ opacity: 0.6 }}>
+        {p.greeting} {p.emoji} · outside it's {phase}
+      </p>
+    </div>
+  );
+}
+
+/* ---------- breathing guide overlay ---------- */
+function BreathingGuide({ theme, phase, onClose }) {
+  const particleChar = phase === "night" ? "⭐" : theme.particle;
+  const particles = Array.from({ length: 12 });
+
+  // close on Escape
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6"
+      style={{ background: `${theme.container}F0`, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Breathing guide"
+    >
+      <button
+        onClick={onClose}
+        aria-label="Close breathing guide"
+        className="absolute top-5 right-5 rounded-2xl p-3 active:scale-90"
+        style={{ background: "rgba(255,255,255,0.7)", color: theme.text, boxShadow: "0 6px 16px -8px rgba(120,90,80,0.4)", transition: "transform 150ms ease" }}
+      >
+        <X size={20} strokeWidth={2.5} />
+      </button>
+
+      <div className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
+        {/* orbiting particle ring — expands & contracts with the breath */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ animation: "breatheScale 8s ease-in-out infinite, slowSpin 70s linear infinite" }}
+        >
+          {particles.map((_, i) => (
+            <span
+              key={i}
+              className="absolute select-none"
+              style={{
+                left: "50%",
+                top: "50%",
+                fontSize: i % 3 === 0 ? 20 : 14,
+                opacity: 0.85,
+                transform: `rotate(${i * 30}deg) translateY(-138px) translateX(-50%)`,
+                transformOrigin: "0 0",
+              }}
+            >
+              {particleChar}
+            </span>
+          ))}
+        </div>
+
+        {/* breathing circle */}
+        <div
+          className="relative rounded-full flex items-center justify-center"
+          style={{
+            width: 190,
+            height: 190,
+            background: `radial-gradient(circle at 38% 32%, rgba(255,255,255,0.9), ${theme.soft})`,
+            boxShadow: `0 0 60px 10px ${theme.bar}55, 0 1px 0 rgba(255,255,255,0.9) inset`,
+            animation: "breatheScale 8s ease-in-out infinite",
+          }}
+        >
+          <span className="absolute text-lg font-bold" style={{ color: theme.text, animation: "breatheInText 8s ease-in-out infinite" }}>
+            breathe in…
+          </span>
+          <span className="absolute text-lg font-bold" style={{ color: theme.text, animation: "breatheOutText 8s ease-in-out infinite", opacity: 0 }}>
+            breathe out…
+          </span>
+        </div>
+      </div>
+
+      <p className="mt-8 text-sm font-semibold text-center" style={{ color: theme.text, opacity: 0.65 }}>
+        follow the circle — four counts in, four counts out 🫧
+      </p>
+    </div>
+  );
+}
+
 /* ---------- lo-fi pixel walking scene (footer) ---------- */
 function PixelScene({ mode, isRunning, theme }) {
   const isBreak = mode !== "focus";
-  const walkDuration = isRunning ? 11 : 18; // walks faster while focusing
+  const walkDuration = isRunning ? 13 : 20;
 
   const skin = "#F6CDB8";
   const hair = "#6B4F44";
   const shirt = mode === "focus" ? "#F4A7B9" : mode === "short" ? "#7FC8B8" : "#B49AD6";
   const pants = "#5E4B45";
-  const px = 5; // base pixel unit
+  const px = 5;
 
   const Character = ({ sitting }) => (
     <div
@@ -229,21 +467,15 @@ function PixelScene({ mode, isRunning, theme }) {
         animation: sitting ? "sitBob 2.4s ease-in-out infinite" : "walkBob 0.5s steps(2) infinite",
       }}
     >
-      {/* hair + head */}
       <div className="absolute" style={{ left: px * 0.5, top: 0, width: px * 3, height: px, background: hair }} />
       <div className="absolute" style={{ left: px * 0.5, top: px, width: px * 3, height: px * 2, background: skin }} />
       <div className="absolute" style={{ left: px * 1, top: px * 1.5, width: px * 0.4, height: px * 0.4, background: "#3B2D2A" }} />
       <div className="absolute" style={{ left: px * 2.4, top: px * 1.5, width: px * 0.4, height: px * 0.4, background: "#3B2D2A" }} />
-      {/* body */}
       <div className="absolute" style={{ left: px * 0.5, top: px * 3, width: px * 3, height: px * 2.5, background: shirt }} />
       {sitting ? (
-        <>
-          {/* folded legs */}
-          <div className="absolute" style={{ left: px * 0.2, top: px * 5.2, width: px * 3.6, height: px * 0.9, background: pants }} />
-        </>
+        <div className="absolute" style={{ left: px * 0.2, top: px * 5.2, width: px * 3.6, height: px * 0.9, background: pants }} />
       ) : (
         <>
-          {/* swinging legs */}
           <div
             className="absolute"
             style={{ left: px * 0.8, top: px * 5.4, width: px * 0.9, height: px * 2.4, background: pants, transformOrigin: "top center", animation: "legSwingA 0.5s ease-in-out infinite alternate" }}
@@ -263,7 +495,6 @@ function PixelScene({ mode, isRunning, theme }) {
       <div className="absolute" style={{ left: px * 1, bottom: px * 2.6, width: px * 5, height: px * 2.4, background: "#A8DCA8" }} />
       <div className="absolute" style={{ left: px * 1.8, bottom: px * 4.6, width: px * 3.4, height: px * 2, background: "#B9E6B3" }} />
       <div className="absolute" style={{ left: px * 2.6, bottom: px * 6.2, width: px * 1.8, height: px * 1.4, background: "#CDEFC5" }} />
-      {/* tiny blossoms */}
       <div className="absolute" style={{ left: px * 1.8, bottom: px * 4, width: px * 0.6, height: px * 0.6, background: "#F8B8CB" }} />
       <div className="absolute" style={{ left: px * 4.4, bottom: px * 5.4, width: px * 0.6, height: px * 0.6, background: "#F8B8CB" }} />
     </div>
@@ -271,40 +502,30 @@ function PixelScene({ mode, isRunning, theme }) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl"
+      className="relative overflow-hidden rounded-3xl"
       style={{
-        height: 104,
+        height: 110,
         background: `linear-gradient(to bottom, ${theme.sky} 0%, ${theme.skyDeep} 100%)`,
         transition: "background 700ms ease",
+        boxShadow: "0 12px 30px -16px rgba(120,90,80,0.3)",
       }}
       aria-hidden="true"
     >
-      {/* drifting pixel clouds */}
-      <div className="absolute" style={{ top: 12, left: 0, animation: "cloudDrift 26s linear infinite" }}>
+      <div className="absolute" style={{ top: 14, left: 0, animation: "cloudDrift 26s linear infinite" }}>
         <div style={{ width: 34, height: 10, background: "rgba(255,255,255,0.85)", boxShadow: "10px -6px 0 rgba(255,255,255,0.85)" }} />
       </div>
-      <div className="absolute" style={{ top: 28, left: 0, animation: "cloudDrift 38s linear 8s infinite" }}>
+      <div className="absolute" style={{ top: 32, left: 0, animation: "cloudDrift 38s linear 8s infinite" }}>
         <div style={{ width: 26, height: 8, background: "rgba(255,255,255,0.7)" }} />
       </div>
-      {/* pixel sun / moon */}
       <div
         className="absolute"
-        style={{
-          top: 10,
-          right: 16,
-          width: 14,
-          height: 14,
-          background: mode === "long" ? "#F3EBC8" : "#FFE89E",
-          boxShadow: "0 0 0 3px rgba(255,255,255,0.35)",
-        }}
+        style={{ top: 12, right: 20, width: 14, height: 14, background: mode === "long" ? "#F3EBC8" : "#FFE89E", boxShadow: "0 0 0 3px rgba(255,255,255,0.35)" }}
       />
-      {/* ground */}
-      <div className="absolute bottom-0 left-0 right-0" style={{ height: 22, background: theme.ground, transition: "background 700ms ease" }} />
-      <div className="absolute bottom-0 left-0 right-0" style={{ height: 8, background: theme.groundDeep, transition: "background 700ms ease" }} />
+      <div className="absolute bottom-0 left-0 right-0" style={{ height: 24, background: theme.ground, transition: "background 700ms ease" }} />
+      <div className="absolute bottom-0 left-0 right-0" style={{ height: 9, background: theme.groundDeep, transition: "background 700ms ease" }} />
 
       {isBreak ? (
-        /* resting under the tree */
-        <div className="absolute flex items-end gap-1" style={{ bottom: 20, left: "34%" }}>
+        <div className="absolute flex items-end gap-1" style={{ bottom: 22, left: "38%" }}>
           <Tree />
           <div style={{ marginLeft: 2 }}>
             <Character sitting />
@@ -314,16 +535,7 @@ function PixelScene({ mode, isRunning, theme }) {
           </span>
         </div>
       ) : (
-        /* walking across a pink-sky world */
-        <div
-          className="absolute"
-          style={{
-            bottom: 20,
-            left: "-15%",
-            animation: `walkAcross ${walkDuration}s linear infinite`,
-            animationPlayState: "running",
-          }}
-        >
+        <div className="absolute" style={{ bottom: 22, left: "-12%", animation: `walkAcross ${walkDuration}s linear infinite` }}>
           <Character sitting={false} />
         </div>
       )}
@@ -342,7 +554,7 @@ function SparkleBurst({ x, y }) {
           className="absolute select-none"
           style={{
             fontSize: 13,
-            animation: `burstFly 0.85s ease-out forwards`,
+            animation: "burstFly 0.85s ease-out forwards",
             ["--dx"]: `${(i - 2) * 16}px`,
             ["--dy"]: `${-22 - Math.abs(i - 2) * 8}px`,
             animationDelay: `${i * 0.04}s`,
@@ -364,10 +576,10 @@ export default function CozyPomodoro() {
   const [isRunning, setIsRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const [sessions, setSessions] = useState(0);
+  const [breathing, setBreathing] = useState(false);
+  const [hour, setHour] = useState(() => new Date().getHours());
 
-  const [tasks, setTasks] = useState([
-    { id: 1, text: "Plan today's top priority", done: false },
-  ]);
+  const [tasks, setTasks] = useState([{ id: 1, text: "Plan today's top priority", done: false }]);
   const [taskInput, setTaskInput] = useState("");
   const [bursts, setBursts] = useState([]);
 
@@ -378,8 +590,9 @@ export default function CozyPomodoro() {
   const theme = THEMES[mode];
   const total = DURATIONS[mode];
   const progress = 1 - secondsLeft / total;
+  const phase = getDayPhase(hour);
 
-  /* ---------- timer engine (setInterval) ---------- */
+  /* ---------- timer engine ---------- */
   useEffect(() => {
     if (!isRunning) return;
     intervalRef.current = setInterval(() => {
@@ -388,7 +601,7 @@ export default function CozyPomodoro() {
     return () => clearInterval(intervalRef.current);
   }, [isRunning]);
 
-  /* ---------- handle completion ---------- */
+  /* ---------- completion ---------- */
   useEffect(() => {
     if (secondsLeft === 0 && isRunning) {
       setIsRunning(false);
@@ -397,6 +610,12 @@ export default function CozyPomodoro() {
       if (mode === "focus") setSessions((n) => n + 1);
     }
   }, [secondsLeft, isRunning, mode]);
+
+  /* ---------- keep the window synced to local time ---------- */
+  useEffect(() => {
+    const id = setInterval(() => setHour(new Date().getHours()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   /* ---------- tab title ---------- */
   useEffect(() => {
@@ -417,7 +636,6 @@ export default function CozyPomodoro() {
 
   const toggleTimer = () => {
     if (secondsLeft === 0) {
-      // restart the same mode after a finished session
       setSecondsLeft(total);
       setFinished(false);
       setIsRunning(true);
@@ -455,11 +673,7 @@ export default function CozyPomodoro() {
     if (justCompleted && listRef.current && e) {
       const listBox = listRef.current.getBoundingClientRect();
       const btnBox = e.currentTarget.getBoundingClientRect();
-      const burst = {
-        id: Date.now(),
-        x: btnBox.left - listBox.left + 8,
-        y: btnBox.top - listBox.top,
-      };
+      const burst = { id: Date.now(), x: btnBox.left - listBox.left + 8, y: btnBox.top - listBox.top };
       setBursts((b) => [...b, burst]);
       setTimeout(() => setBursts((b) => b.filter((bb) => bb.id !== burst.id)), 1000);
     }
@@ -484,45 +698,45 @@ export default function CozyPomodoro() {
 
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center px-4 py-8"
-      style={{ background: "#FAF7F2", fontFamily: FONT_STACK, color: theme.text, transition: "color 700ms ease" }}
+      className="min-h-screen w-full flex flex-col"
+      style={{
+        background: `linear-gradient(180deg, #FAF7F2 0%, ${theme.container} 100%)`,
+        fontFamily: FONT_STACK,
+        color: theme.text,
+        transition: "background 900ms ease, color 700ms ease",
+      }}
     >
-      {/* keyframes + reduced-motion support */}
       <style>{`
         @keyframes zFloat { 0% { transform: translateY(0); opacity: 0; } 25% { opacity: 0.6; } 100% { transform: translateY(-26px); opacity: 0; } }
         @keyframes sparkleTwinkle { 0%, 100% { transform: scale(0.6) rotate(-8deg); opacity: 0.25; } 50% { transform: scale(1.15) rotate(8deg); opacity: 1; } }
         @keyframes sleepBreathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.035) translateY(-1px); } }
         @keyframes happyBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        @keyframes walkAcross { from { left: -15%; } to { left: 105%; } }
+        @keyframes walkAcross { from { left: -12%; } to { left: 104%; } }
         @keyframes walkBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
         @keyframes sitBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
         @keyframes legSwingA { from { transform: rotate(22deg); } to { transform: rotate(-22deg); } }
         @keyframes legSwingB { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
-        @keyframes cloudDrift { from { transform: translateX(-60px); } to { transform: translateX(560px); } }
+        @keyframes cloudDrift { from { transform: translateX(-70px); } to { transform: translateX(620px); } }
         @keyframes noteFloat { 0%, 100% { transform: translateY(0); opacity: 0.4; } 50% { transform: translateY(-8px); opacity: 0.9; } }
         @keyframes burstFly { 0% { transform: translate(0, 0) scale(0.5); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1.1); opacity: 0; } }
-        @keyframes gentlePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015); } }
+        @keyframes gentlePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
+        @keyframes starTwinkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+        @keyframes breatheScale { 0% { transform: scale(0.74); } 42% { transform: scale(1.12); } 55% { transform: scale(1.12); } 97% { transform: scale(0.74); } 100% { transform: scale(0.74); } }
+        @keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes breatheInText { 0% { opacity: 0; } 8% { opacity: 1; } 40% { opacity: 1; } 52% { opacity: 0; } 100% { opacity: 0; } }
+        @keyframes breatheOutText { 0% { opacity: 0; } 52% { opacity: 0; } 60% { opacity: 1; } 92% { opacity: 1; } 100% { opacity: 0; } }
         button:focus-visible, input:focus-visible { outline: 3px solid rgba(244, 167, 185, 0.7); outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
         }
       `}</style>
 
-      {/* floating main card */}
-      <main
-        className="w-full max-w-md rounded-3xl p-5 sm:p-7"
-        style={{
-          background: theme.container,
-          boxShadow: `0 24px 60px -18px ${theme.bar}55, 0 8px 24px -10px rgba(120, 90, 80, 0.18), 0 1px 0 rgba(255,255,255,0.7) inset`,
-          border: `1px solid ${theme.border}`,
-          transition: "background 700ms ease, border-color 700ms ease, box-shadow 700ms ease",
-        }}
-      >
-        {/* header */}
-        <header className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-bold tracking-wide flex items-center gap-2">
-            <span aria-hidden="true">☁️</span> cozy pomodoro
-          </h1>
+      {/* ---------- header ---------- */}
+      <header className="w-full max-w-6xl mx-auto px-4 sm:px-6 pt-6 flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-xl font-bold tracking-wide flex items-center gap-2">
+          <span aria-hidden="true">☁️</span> cozy pomodoro
+        </h1>
+        <div className="flex items-center gap-3">
           {/* session paw counter */}
           <div className="flex items-center gap-1" title={`${sessions} focus sessions completed`} aria-label={`${sessions} focus sessions completed`}>
             {[0, 1, 2, 3].map((i) => (
@@ -532,205 +746,236 @@ export default function CozyPomodoro() {
             ))}
             {sessions > 4 && <span className="text-xs font-bold ml-1">×{sessions}</span>}
           </div>
-        </header>
-
-        {/* mode tabs */}
-        <nav className="grid grid-cols-3 gap-2 mb-5" aria-label="Timer mode">
-          {Object.entries(THEMES).map(([key, t]) => {
-            const Icon = t.icon;
-            const active = mode === key;
-            return (
-              <button
-                key={key}
-                onClick={() => switchMode(key)}
-                aria-pressed={active}
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 rounded-2xl px-2 py-2.5 text-xs sm:text-sm font-semibold"
-                style={{
-                  background: active ? theme.text : "rgba(255,255,255,0.55)",
-                  color: active ? theme.container : theme.text,
-                  boxShadow: active ? `0 6px 16px -6px ${theme.text}66` : "0 2px 6px -2px rgba(120,90,80,0.12)",
-                  transform: active ? "translateY(-1px)" : "none",
-                  transition: "all 350ms ease",
-                }}
-              >
-                <Icon size={15} strokeWidth={2.4} aria-hidden="true" />
-                {t.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* pixel cat */}
-        <PixelCat awake={catAwake} theme={theme} />
-
-        {/* timer display */}
-        <section
-          className="rounded-3xl px-6 py-5 mb-4 text-center"
-          style={{
-            background: "rgba(255,255,255,0.6)",
-            boxShadow: "0 10px 28px -14px rgba(120,90,80,0.25), 0 1px 0 rgba(255,255,255,0.9) inset",
-            animation: isRunning ? "gentlePulse 4s ease-in-out infinite" : "none",
-            transition: "background 700ms ease",
-          }}
-          aria-live="polite"
-        >
-          <div
-            className="font-bold leading-none select-none"
-            style={{ fontSize: "clamp(3.5rem, 18vw, 5rem)", fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em" }}
-          >
-            {mm}
-            <span style={{ opacity: isRunning ? (secondsLeft % 2 ? 0.35 : 1) : 1, transition: "opacity 200ms" }}>:</span>
-            {ss}
-          </div>
-
-          {/* progress bar */}
-          <div className="mt-4 h-2.5 w-full rounded-full overflow-hidden" style={{ background: theme.soft, transition: "background 700ms ease" }}>
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${progress * 100}%`, background: theme.bar, transition: "width 900ms linear, background 700ms ease" }}
-            />
-          </div>
-
-          <p className="mt-3 text-sm font-medium" style={{ opacity: 0.75 }}>
-            {statusLine}
-          </p>
-        </section>
-
-        {/* controls */}
-        <div className="flex items-center justify-center gap-3 mb-6">
+          {/* breathing guide toggle */}
           <button
-            onClick={toggleTimer}
-            className="flex items-center gap-2 rounded-3xl px-7 py-3.5 text-base font-bold active:scale-95"
-            style={{
-              background: "#FFDFD3",
-              color: "#4A3E3D",
-              boxShadow: "0 10px 24px -10px rgba(244, 167, 185, 0.8), 0 1px 0 rgba(255,255,255,0.8) inset",
-              transition: "transform 150ms ease, box-shadow 300ms ease",
-            }}
+            onClick={() => setBreathing(true)}
+            className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold active:scale-95"
+            style={{ background: "rgba(255,255,255,0.7)", color: theme.text, boxShadow: "0 8px 20px -10px rgba(120,90,80,0.35)", transition: "transform 150ms ease" }}
           >
-            {isRunning ? <Pause size={20} strokeWidth={2.6} aria-hidden="true" /> : <Play size={20} strokeWidth={2.6} aria-hidden="true" />}
-            {isRunning ? "Pause" : secondsLeft === 0 ? "Restart" : "Start"}
-          </button>
-          <button
-            onClick={resetTimer}
-            aria-label="Reset timer"
-            className="flex items-center justify-center rounded-3xl p-3.5 active:scale-95"
-            style={{
-              background: "#FFF2CC",
-              color: "#4A3E3D",
-              boxShadow: "0 8px 20px -10px rgba(214, 178, 94, 0.6), 0 1px 0 rgba(255,255,255,0.8) inset",
-              transition: "transform 150ms ease",
-            }}
-          >
-            <RotateCcw size={20} strokeWidth={2.6} aria-hidden="true" />
+            <Wind size={16} strokeWidth={2.5} aria-hidden="true" />
+            Breathe
           </button>
         </div>
+      </header>
 
-        {/* task checklist */}
+      {/* ---------- main: full-screen two-column ---------- */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 grid gap-6 lg:grid-cols-[1.15fr_1fr] items-start">
+        {/* LEFT — timer card */}
         <section
-          className="relative rounded-3xl p-4 mb-5"
-          ref={listRef}
-          style={{ background: "rgba(255,255,255,0.55)", boxShadow: "0 8px 24px -14px rgba(120,90,80,0.22)", transition: "background 700ms ease" }}
+          className="rounded-3xl p-5 sm:p-7"
+          style={{
+            background: theme.container,
+            boxShadow: `0 24px 60px -18px ${theme.bar}55, 0 8px 24px -10px rgba(120, 90, 80, 0.18), 0 1px 0 rgba(255,255,255,0.7) inset`,
+            border: `1px solid ${theme.border}`,
+            transition: "background 700ms ease, border-color 700ms ease, box-shadow 700ms ease",
+          }}
         >
-          {bursts.map((b) => (
-            <SparkleBurst key={b.id} x={b.x} y={b.y} />
-          ))}
-
-          <h2 className="text-sm font-bold mb-3 flex items-center gap-1.5">
-            <Sparkles size={14} strokeWidth={2.5} aria-hidden="true" /> Focus goals
-          </h2>
-
-          {/* add task */}
-          <div className="flex gap-2 mb-3">
-            <input
-              type="text"
-              value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addTask()}
-              placeholder="What will you focus on?"
-              aria-label="New focus goal"
-              maxLength={80}
-              className="flex-1 min-w-0 rounded-2xl px-4 py-2.5 text-sm font-medium placeholder-current"
-              style={{
-                background: "rgba(255,255,255,0.85)",
-                color: theme.text,
-                border: `1.5px solid ${theme.border}`,
-                transition: "border-color 700ms ease",
-              }}
-            />
-            <button
-              onClick={addTask}
-              aria-label="Add focus goal"
-              className="rounded-2xl px-3.5 active:scale-95"
-              style={{ background: theme.chip, color: "#4A3E3D", boxShadow: "0 4px 12px -6px rgba(120,90,80,0.3)", transition: "transform 150ms ease, background 700ms ease" }}
-            >
-              <Plus size={18} strokeWidth={2.8} aria-hidden="true" />
-            </button>
-          </div>
-
-          {/* list */}
-          {tasks.length === 0 ? (
-            <p className="text-xs text-center py-3 font-medium" style={{ opacity: 0.55 }}>
-              No goals yet — add one tiny thing to focus on 🌱
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {tasks.map((task) => (
-                <li
-                  key={task.id}
-                  className="flex items-center gap-3 rounded-2xl px-3 py-2.5 group"
+          {/* mode tabs */}
+          <nav className="grid grid-cols-3 gap-2 mb-4" aria-label="Timer mode">
+            {Object.entries(THEMES).map(([key, t]) => {
+              const Icon = t.icon;
+              const active = mode === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => switchMode(key)}
+                  aria-pressed={active}
+                  className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 rounded-2xl px-2 py-2.5 text-xs sm:text-sm font-semibold"
                   style={{
-                    background: "rgba(255,255,255,0.75)",
-                    opacity: task.done ? 0.55 : 1,
-                    transition: "opacity 400ms ease",
+                    background: active ? theme.text : "rgba(255,255,255,0.55)",
+                    color: active ? theme.container : theme.text,
+                    boxShadow: active ? `0 6px 16px -6px ${theme.text}66` : "0 2px 6px -2px rgba(120,90,80,0.12)",
+                    transform: active ? "translateY(-1px)" : "none",
+                    transition: "all 350ms ease",
                   }}
                 >
-                  <button
-                    onClick={(e) => toggleTask(task.id, e)}
-                    aria-label={task.done ? `Mark "${task.text}" as not done` : `Mark "${task.text}" as done`}
-                    aria-pressed={task.done}
-                    className="flex-shrink-0 w-5 h-5 rounded-lg flex items-center justify-center active:scale-90"
-                    style={{
-                      background: task.done ? theme.bar : "rgba(255,255,255,0.9)",
-                      border: `2px solid ${task.done ? theme.bar : theme.border}`,
-                      color: "#fff",
-                      transition: "all 250ms ease",
-                    }}
-                  >
-                    {task.done && (
-                      <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                        <path d="M2 6.5 L4.8 9 L10 3.2" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </button>
-                  <span
-                    className="flex-1 text-sm font-medium break-words"
-                    style={{ textDecoration: task.done ? "line-through" : "none", transition: "all 300ms ease" }}
-                  >
-                    {task.text}
-                  </span>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    aria-label={`Delete "${task.text}"`}
-                    className="flex-shrink-0 rounded-xl p-1.5 opacity-40 hover:opacity-100 active:scale-90"
-                    style={{ color: theme.text, transition: "opacity 200ms ease, transform 150ms ease" }}
-                  >
-                    <Trash2 size={15} strokeWidth={2.2} aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                  <Icon size={15} strokeWidth={2.4} aria-hidden="true" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <PixelCat awake={catAwake} theme={theme} />
+
+          <div
+            className="rounded-3xl px-6 py-6 mb-5 text-center"
+            style={{
+              background: "rgba(255,255,255,0.6)",
+              boxShadow: "0 10px 28px -14px rgba(120,90,80,0.25), 0 1px 0 rgba(255,255,255,0.9) inset",
+              animation: isRunning ? "gentlePulse 4s ease-in-out infinite" : "none",
+              transition: "background 700ms ease",
+            }}
+            aria-live="polite"
+          >
+            <div
+              className="font-bold leading-none select-none"
+              style={{ fontSize: "clamp(3.8rem, 11vw, 6.5rem)", fontVariantNumeric: "tabular-nums", letterSpacing: "0.02em" }}
+            >
+              {mm}
+              <span style={{ opacity: isRunning ? (secondsLeft % 2 ? 0.35 : 1) : 1, transition: "opacity 200ms" }}>:</span>
+              {ss}
+            </div>
+
+            <div className="mt-5 h-2.5 w-full rounded-full overflow-hidden" style={{ background: theme.soft, transition: "background 700ms ease" }}>
+              <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: theme.bar, transition: "width 900ms linear, background 700ms ease" }} />
+            </div>
+
+            <p className="mt-3 text-sm font-medium" style={{ opacity: 0.75 }}>
+              {statusLine}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={toggleTimer}
+              className="flex items-center gap-2 rounded-3xl px-8 py-4 text-base font-bold active:scale-95"
+              style={{
+                background: "#FFDFD3",
+                color: "#4A3E3D",
+                boxShadow: "0 10px 24px -10px rgba(244, 167, 185, 0.8), 0 1px 0 rgba(255,255,255,0.8) inset",
+                transition: "transform 150ms ease, box-shadow 300ms ease",
+              }}
+            >
+              {isRunning ? <Pause size={20} strokeWidth={2.6} aria-hidden="true" /> : <Play size={20} strokeWidth={2.6} aria-hidden="true" />}
+              {isRunning ? "Pause" : secondsLeft === 0 ? "Restart" : "Start"}
+            </button>
+            <button
+              onClick={resetTimer}
+              aria-label="Reset timer"
+              className="flex items-center justify-center rounded-3xl p-4 active:scale-95"
+              style={{
+                background: "#FFF2CC",
+                color: "#4A3E3D",
+                boxShadow: "0 8px 20px -10px rgba(214, 178, 94, 0.6), 0 1px 0 rgba(255,255,255,0.8) inset",
+                transition: "transform 150ms ease",
+              }}
+            >
+              <RotateCcw size={20} strokeWidth={2.6} aria-hidden="true" />
+            </button>
+          </div>
         </section>
 
-        {/* footer pixel scene */}
-        <footer>
-          <PixelScene mode={mode} isRunning={isRunning} theme={theme} />
-          <p className="text-center text-[11px] font-medium mt-3" style={{ opacity: 0.5 }}>
-            one gentle step at a time 🌸
-          </p>
-        </footer>
+        {/* RIGHT — window + tasks */}
+        <div className="flex flex-col gap-6">
+          {/* window to the outside */}
+          <section
+            className="rounded-3xl p-5"
+            style={{
+              background: "rgba(255,255,255,0.55)",
+              border: `1px solid ${theme.border}`,
+              boxShadow: "0 18px 44px -20px rgba(120,90,80,0.3), 0 1px 0 rgba(255,255,255,0.8) inset",
+              transition: "border-color 700ms ease",
+            }}
+          >
+            <OutsideWindow phase={phase} theme={theme} />
+          </section>
+
+          {/* task checklist */}
+          <section
+            className="relative rounded-3xl p-5"
+            ref={listRef}
+            style={{
+              background: "rgba(255,255,255,0.55)",
+              border: `1px solid ${theme.border}`,
+              boxShadow: "0 18px 44px -20px rgba(120,90,80,0.3)",
+              transition: "border-color 700ms ease",
+            }}
+          >
+            {bursts.map((b) => (
+              <SparkleBurst key={b.id} x={b.x} y={b.y} />
+            ))}
+
+            <h2 className="text-sm font-bold mb-3 flex items-center gap-1.5">
+              <Sparkles size={14} strokeWidth={2.5} aria-hidden="true" /> Focus goals
+            </h2>
+
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={taskInput}
+                onChange={(e) => setTaskInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addTask()}
+                placeholder="What will you focus on?"
+                aria-label="New focus goal"
+                maxLength={80}
+                className="flex-1 min-w-0 rounded-2xl px-4 py-2.5 text-sm font-medium placeholder-current"
+                style={{
+                  background: "rgba(255,255,255,0.85)",
+                  color: theme.text,
+                  border: `1.5px solid ${theme.border}`,
+                  transition: "border-color 700ms ease",
+                }}
+              />
+              <button
+                onClick={addTask}
+                aria-label="Add focus goal"
+                className="rounded-2xl px-3.5 active:scale-95"
+                style={{ background: theme.chip, color: "#4A3E3D", boxShadow: "0 4px 12px -6px rgba(120,90,80,0.3)", transition: "transform 150ms ease, background 700ms ease" }}
+              >
+                <Plus size={18} strokeWidth={2.8} aria-hidden="true" />
+              </button>
+            </div>
+
+            {tasks.length === 0 ? (
+              <p className="text-xs text-center py-3 font-medium" style={{ opacity: 0.55 }}>
+                No goals yet — add one tiny thing to focus on 🌱
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {tasks.map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-2.5 group"
+                    style={{ background: "rgba(255,255,255,0.75)", opacity: task.done ? 0.55 : 1, transition: "opacity 400ms ease" }}
+                  >
+                    <button
+                      onClick={(e) => toggleTask(task.id, e)}
+                      aria-label={task.done ? `Mark "${task.text}" as not done` : `Mark "${task.text}" as done`}
+                      aria-pressed={task.done}
+                      className="flex-shrink-0 w-5 h-5 rounded-lg flex items-center justify-center active:scale-90"
+                      style={{
+                        background: task.done ? theme.bar : "rgba(255,255,255,0.9)",
+                        border: `2px solid ${task.done ? theme.bar : theme.border}`,
+                        color: "#fff",
+                        transition: "all 250ms ease",
+                      }}
+                    >
+                      {task.done && (
+                        <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                          <path d="M2 6.5 L4.8 9 L10 3.2" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                    <span className="flex-1 text-sm font-medium break-words" style={{ textDecoration: task.done ? "line-through" : "none", transition: "all 300ms ease" }}>
+                      {task.text}
+                    </span>
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      aria-label={`Delete "${task.text}"`}
+                      className="flex-shrink-0 rounded-xl p-1.5 opacity-40 hover:opacity-100 active:scale-90"
+                      style={{ color: theme.text, transition: "opacity 200ms ease, transform 150ms ease" }}
+                    >
+                      <Trash2 size={15} strokeWidth={2.2} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </main>
+
+      {/* ---------- footer pixel scene (full width) ---------- */}
+      <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+        <PixelScene mode={mode} isRunning={isRunning} theme={theme} />
+        <p className="text-center text-[11px] font-medium mt-3" style={{ opacity: 0.5 }}>
+          one gentle step at a time 🌸
+        </p>
+      </footer>
+
+      {/* ---------- breathing guide overlay ---------- */}
+      {breathing && <BreathingGuide theme={theme} phase={phase} onClose={() => setBreathing(false)} />}
     </div>
   );
 }
