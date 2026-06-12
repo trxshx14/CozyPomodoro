@@ -163,18 +163,22 @@ function playChime() {
   }
 }
 
-/* ---------- pixel cat illustration ---------- */
-function PixelCat({ awake, theme }) {
+/* ---------- reactive desk companion cat ----------
+   states: "studying" (focus) · "drinking" (focus hits 0:00) · "napping" (breaks) */
+function DeskCompanion({ state, theme }) {
   const fur = "#F6CDB8";
   const furDark = "#EBB79D";
   const inner = "#F9A8C0";
   const dark = theme.text;
   const blush = "#F8A8B8";
+  const wood = "#C9A075";
+  const woodDark = "#B08A5F";
 
   return (
-    <div className="relative flex items-end justify-center" style={{ height: 116 }}>
-      {!awake && (
-        <div className="absolute pointer-events-none" style={{ top: 0, right: "30%" }}>
+    <div className="relative flex items-end justify-center" style={{ height: 132, width: 210 }}>
+      {/* floating z's while napping */}
+      {state === "napping" && (
+        <div className="absolute pointer-events-none" style={{ top: 4, right: "26%" }}>
           {[0, 1, 2].map((i) => (
             <span
               key={i}
@@ -192,13 +196,48 @@ function PixelCat({ awake, theme }) {
           ))}
         </div>
       )}
-      {awake && (
+
+      {/* study papers tossed into the air during breaks */}
+      {state === "napping" && (
         <>
           {[
-            { left: "24%", top: 6, delay: "0s", size: 18 },
-            { left: "70%", top: 0, delay: "0.4s", size: 22 },
-            { left: "60%", top: 30, delay: "0.9s", size: 14 },
-            { left: "34%", top: 34, delay: "1.3s", size: 15 },
+            { left: "10%", delay: "0s", drift: "14px" },
+            { left: "32%", delay: "1.6s", drift: "-12px" },
+            { left: "62%", delay: "0.8s", drift: "10px" },
+            { left: "80%", delay: "2.4s", drift: "-16px" },
+          ].map((p, i) => (
+            <div
+              key={i}
+              className="absolute pointer-events-none"
+              style={{
+                left: p.left,
+                top: -6,
+                width: 13,
+                height: 16,
+                background: "#FFFDF8",
+                border: "1px solid rgba(74,62,61,0.2)",
+                borderRadius: 2,
+                ["--drift"]: p.drift,
+                animation: `paperFloat 5.5s ease-in ${p.delay} infinite`,
+              }}
+            >
+              <div style={{ margin: "3px 2px 0", height: 1.5, background: "rgba(74,62,61,0.25)" }} />
+              <div style={{ margin: "2px 2px 0", height: 1.5, background: "rgba(74,62,61,0.18)", width: "70%" }} />
+              <div style={{ margin: "2px 2px 0", height: 1.5, background: "rgba(74,62,61,0.18)", width: "50%" }} />
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* celebration sparkles while drinking */}
+      {state === "drinking" && (
+        <>
+          {[
+            { left: "16%", top: 4, delay: "0s", size: 18 },
+            { left: "74%", top: 0, delay: "0.4s", size: 22 },
+            { left: "62%", top: 32, delay: "0.9s", size: 14 },
+            { left: "28%", top: 36, delay: "1.3s", size: 15 },
+            { left: "46%", top: -4, delay: "0.6s", size: 16 },
           ].map((s, i) => (
             <span
               key={i}
@@ -210,51 +249,160 @@ function PixelCat({ awake, theme }) {
           ))}
         </>
       )}
-      <svg
-        viewBox="0 0 20 14"
-        width="164"
-        height="115"
-        style={{
-          shapeRendering: "crispEdges",
-          animation: awake ? "happyBounce 1.6s ease-in-out infinite" : "sleepBreathe 3.2s ease-in-out infinite",
-        }}
-        aria-label={awake ? "A happy pixel cat surrounded by sparkles" : "A sleeping pixel cat"}
-        role="img"
-      >
-        <rect x="4" y={awake ? 1 : 2} width="2" height="2" fill={furDark} />
-        <rect x="12" y={awake ? 1 : 2} width="2" height="2" fill={furDark} />
-        <rect x="4.5" y={awake ? 1.6 : 2.6} width="1" height="1" fill={inner} />
-        <rect x="12.5" y={awake ? 1.6 : 2.6} width="1" height="1" fill={inner} />
-        <rect x="3" y={awake ? 3 : 4} width="12" height="6" fill={fur} />
-        <rect x="2" y="8" width="16" height="5" fill={fur} />
-        <rect x="2" y="12" width="16" height="1" fill={furDark} />
-        <rect x="17" y="9" width="2" height="1.4" fill={furDark}>
-          <animate attributeName="y" values="9;8.4;9" dur="1.4s" repeatCount="indefinite" />
-        </rect>
-        <rect x="4" y="11.4" width="2.4" height="1.2" fill={furDark} />
-        <rect x="11.6" y="11.4" width="2.4" height="1.2" fill={furDark} />
-        {awake ? (
-          <>
-            <rect x="6" y="5" width="1.4" height="1.8" fill={dark} />
-            <rect x="10.6" y="5" width="1.4" height="1.8" fill={dark} />
-            <rect x="6.3" y="5.3" width="0.5" height="0.5" fill="#FFFFFF" />
-            <rect x="10.9" y="5.3" width="0.5" height="0.5" fill="#FFFFFF" />
-            <rect x="8.4" y="7.2" width="1.2" height="0.5" fill={dark} />
-            <rect x="8.1" y="6.9" width="0.4" height="0.4" fill={dark} />
-            <rect x="9.5" y="6.9" width="0.4" height="0.4" fill={dark} />
-          </>
-        ) : (
-          <>
-            <rect x="5.8" y="6" width="1.8" height="0.5" fill={dark} />
-            <rect x="10.4" y="6" width="1.8" height="0.5" fill={dark} />
-            <rect x="8.5" y="7.1" width="1" height="0.4" fill={dark} opacity="0.6" />
-          </>
-        )}
-        <rect x="4.6" y="6.8" width="1.2" height="0.7" fill={blush} opacity="0.8" />
-        <rect x="12.2" y="6.8" width="1.2" height="0.7" fill={blush} opacity="0.8" />
-        <rect x="2.2" y="6.2" width="1.4" height="0.35" fill={dark} opacity="0.45" />
-        <rect x="14.4" y="6.2" width="1.4" height="0.35" fill={dark} opacity="0.45" />
-      </svg>
+
+      {/* ============ STUDYING — glasses, desk, notebook ============ */}
+      {state === "studying" && (
+        <svg
+          viewBox="0 0 26 17"
+          width="200"
+          height="131"
+          style={{ shapeRendering: "crispEdges" }}
+          aria-label="A focused pixel cat with reading glasses writing at a tiny wooden desk"
+          role="img"
+        >
+          {/* cat with a gentle study bob */}
+          <g style={{ animation: "studyBob 3.4s ease-in-out infinite" }}>
+            {/* ears */}
+            <rect x="7.5" y="0.5" width="2" height="2" fill={furDark} />
+            <rect x="15.5" y="0.5" width="2" height="2" fill={furDark} />
+            <rect x="8" y="1.1" width="1" height="1" fill={inner} />
+            <rect x="16" y="1.1" width="1" height="1" fill={inner} />
+            {/* head */}
+            <rect x="6.5" y="2.5" width="12" height="6" fill={fur} />
+            {/* round reading glasses */}
+            <rect x="9" y="4.2" width="2.4" height="2" fill="rgba(255,255,255,0.45)" stroke={dark} strokeWidth="0.4" />
+            <rect x="13.6" y="4.2" width="2.4" height="2" fill="rgba(255,255,255,0.45)" stroke={dark} strokeWidth="0.4" />
+            <rect x="11.4" y="5" width="2.2" height="0.45" fill={dark} />
+            <rect x="6.5" y="5" width="2.5" height="0.45" fill={dark} opacity="0.6" />
+            <rect x="16" y="5" width="2.5" height="0.45" fill={dark} opacity="0.6" />
+            {/* calm focused eyes behind lenses */}
+            <rect x="9.8" y="4.9" width="0.9" height="1" fill={dark} />
+            <rect x="14.4" y="4.9" width="0.9" height="1" fill={dark} />
+            {/* small concentrating mouth */}
+            <rect x="12.1" y="7.2" width="0.9" height="0.4" fill={dark} opacity="0.7" />
+            {/* blush */}
+            <rect x="7.6" y="6.4" width="1.2" height="0.7" fill={blush} opacity="0.8" />
+            <rect x="16.2" y="6.4" width="1.2" height="0.7" fill={blush} opacity="0.8" />
+            {/* body behind the desk */}
+            <rect x="7.5" y="8.5" width="10" height="3.5" fill={fur} />
+          </g>
+
+          {/* writing paw + pencil (animates above the notebook) */}
+          <g style={{ animation: "pawWrite 1.1s ease-in-out infinite" }}>
+            <rect x="13.6" y="10.2" width="1.8" height="1.2" fill={furDark} />
+            <rect x="14.6" y="9.3" width="0.6" height="1.4" fill="#E8B84A" />
+            <rect x="14.6" y="9" width="0.6" height="0.4" fill={dark} />
+          </g>
+          {/* resting paw */}
+          <rect x="9.4" y="10.4" width="1.8" height="1" fill={furDark} />
+
+          {/* notebook on the desk */}
+          <rect x="9" y="10.9" width="7" height="1.1" fill="#FFFDF8" stroke="rgba(74,62,61,0.25)" strokeWidth="0.25" />
+          <rect x="9.8" y="11.25" width="3.4" height="0.3" fill="rgba(74,62,61,0.3)" />
+          <rect x="9.8" y="11.75" width="2.2" height="0.3" fill="rgba(74,62,61,0.2)" />
+
+          {/* tiny wooden desk */}
+          <rect x="4.5" y="12" width="16.5" height="1.4" fill={wood} />
+          <rect x="4.5" y="13.1" width="16.5" height="0.4" fill={woodDark} />
+          <rect x="5.5" y="13.4" width="1.3" height="3.4" fill={woodDark} />
+          <rect x="18.6" y="13.4" width="1.3" height="3.4" fill={woodDark} />
+        </svg>
+      )}
+
+      {/* ============ DRINKING — leaning toward the full cup ============ */}
+      {state === "drinking" && (
+        <svg
+          viewBox="0 0 22 15"
+          width="190"
+          height="129"
+          style={{ shapeRendering: "crispEdges", animation: "happyBounce 1.6s ease-in-out infinite", transform: "rotate(4deg)" }}
+          aria-label="A happy pixel cat reaching for its bubble tea, surrounded by sparkles"
+          role="img"
+        >
+          {/* ears */}
+          <rect x="4" y="1" width="2" height="2" fill={furDark} />
+          <rect x="12" y="1" width="2" height="2" fill={furDark} />
+          <rect x="4.5" y="1.6" width="1" height="1" fill={inner} />
+          <rect x="12.5" y="1.6" width="1" height="1" fill={inner} />
+          {/* head */}
+          <rect x="3" y="3" width="12" height="6" fill={fur} />
+          {/* happy closed ^^ eyes */}
+          <rect x="5.6" y="5.2" width="0.6" height="0.5" fill={dark} />
+          <rect x="6.2" y="4.8" width="0.6" height="0.5" fill={dark} />
+          <rect x="6.8" y="5.2" width="0.6" height="0.5" fill={dark} />
+          <rect x="10.2" y="5.2" width="0.6" height="0.5" fill={dark} />
+          <rect x="10.8" y="4.8" width="0.6" height="0.5" fill={dark} />
+          <rect x="11.4" y="5.2" width="0.6" height="0.5" fill={dark} />
+          {/* delighted open mouth */}
+          <rect x="8.3" y="6.6" width="1.4" height="1" fill={dark} />
+          <rect x="8.6" y="7.1" width="0.8" height="0.5" fill={inner} />
+          {/* blush */}
+          <rect x="4.4" y="6.6" width="1.2" height="0.7" fill={blush} opacity="0.9" />
+          <rect x="12.4" y="6.6" width="1.2" height="0.7" fill={blush} opacity="0.9" />
+          {/* body */}
+          <rect x="2" y="8" width="16" height="5" fill={fur} />
+          <rect x="2" y="12" width="16" height="1" fill={furDark} />
+          {/* paw reaching out toward the cup */}
+          <rect x="17" y="8.6" width="3.6" height="1.4" fill={fur} />
+          <rect x="20.2" y="8.4" width="1.4" height="1.8" fill={furDark} />
+          {/* other paw tucked */}
+          <rect x="4" y="11.4" width="2.4" height="1.2" fill={furDark} />
+          {/* excited upright tail */}
+          <rect x="0.6" y="7.4" width="1.2" height="3.4" fill={furDark}>
+            <animate attributeName="y" values="7.4;6.8;7.4" dur="0.9s" repeatCount="indefinite" />
+          </rect>
+          {/* whiskers */}
+          <rect x="1.4" y="6" width="1.4" height="0.35" fill={dark} opacity="0.45" />
+          <rect x="15.2" y="6" width="1.4" height="0.35" fill={dark} opacity="0.45" />
+        </svg>
+      )}
+
+      {/* ============ NAPPING — sleeping mask + plush pillow ============ */}
+      {state === "napping" && (
+        <svg
+          viewBox="0 0 24 16"
+          width="200"
+          height="133"
+          style={{ shapeRendering: "crispEdges", animation: "sleepBreathe 3.2s ease-in-out infinite" }}
+          aria-label="A pixel cat napping on a plush pillow wearing a tiny sleeping mask"
+          role="img"
+        >
+          {/* plush pillow */}
+          <rect x="2" y="10.5" width="20" height="4.5" rx="1.6" fill={theme.soft} />
+          <rect x="3" y="11.2" width="18" height="0.5" rx="0.25" fill="rgba(255,255,255,0.7)" />
+          <rect x="2.6" y="14.2" width="18.8" height="0.6" rx="0.3" fill="rgba(74,62,61,0.12)" />
+          {/* pillow corner tufts */}
+          <rect x="1.4" y="10.2" width="1.2" height="1.2" fill={theme.soft} />
+          <rect x="21.4" y="10.2" width="1.2" height="1.2" fill={theme.soft} />
+
+          {/* ears (relaxed) */}
+          <rect x="6" y="2.6" width="2" height="2" fill={furDark} />
+          <rect x="14" y="2.6" width="2" height="2" fill={furDark} />
+          <rect x="6.5" y="3.2" width="1" height="1" fill={inner} />
+          <rect x="14.5" y="3.2" width="1" height="1" fill={inner} />
+          {/* head */}
+          <rect x="5" y="4.5" width="12" height="6" fill={fur} />
+          {/* tiny sleeping mask with a star */}
+          <rect x="6.4" y="6" width="9.2" height="2" fill="#8E7BA8" />
+          <rect x="5" y="6.6" width="1.4" height="0.5" fill="#6F5E8C" />
+          <rect x="15.6" y="6.6" width="1.4" height="0.5" fill="#6F5E8C" />
+          <rect x="10.4" y="6.6" width="0.7" height="0.7" fill="#FFF2CC" />
+          {/* peaceful little mouth */}
+          <rect x="10.5" y="8.8" width="1" height="0.4" fill={dark} opacity="0.6" />
+          {/* blush */}
+          <rect x="6.4" y="8.3" width="1.2" height="0.7" fill={blush} opacity="0.8" />
+          <rect x="14.4" y="8.3" width="1.2" height="0.7" fill={blush} opacity="0.8" />
+          {/* curled body on the pillow */}
+          <rect x="4" y="9.5" width="16" height="3" fill={fur} />
+          <rect x="4" y="12" width="16" height="0.8" fill={furDark} />
+          {/* tail curled around the front */}
+          <rect x="16.5" y="11.6" width="3.4" height="1" fill={furDark} />
+          <rect x="18.9" y="10.6" width="1" height="1.6" fill={furDark} />
+          {/* paws tucked under chin */}
+          <rect x="8.6" y="11.6" width="2.2" height="1" fill={furDark} />
+          <rect x="11.4" y="11.6" width="2.2" height="1" fill={furDark} />
+        </svg>
+      )}
     </div>
   );
 }
@@ -792,7 +940,9 @@ export default function CozyPomodoro() {
   /* ---------- derived display ---------- */
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
-  const catAwake = mode !== "focus" || finished || (!isRunning && secondsLeft === total);
+  /* desk companion: studying during focus, drinking the moment focus
+     hits 0:00, napping on a pillow during breaks */
+  const catState = mode !== "focus" ? "napping" : finished ? "drinking" : "studying";
 
   const statusLine = finished
     ? mode === "focus"
@@ -833,6 +983,9 @@ export default function CozyPomodoro() {
         @keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes breatheInText { 0% { opacity: 0; } 8% { opacity: 1; } 40% { opacity: 1; } 52% { opacity: 0; } 100% { opacity: 0; } }
         @keyframes breatheOutText { 0% { opacity: 0; } 52% { opacity: 0; } 60% { opacity: 1; } 92% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes pawWrite { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(0.7px, -0.15px); } 60% { transform: translate(1.3px, 0.1px); } 80% { transform: translate(0.5px, -0.1px); } }
+        @keyframes studyBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(0.4px); } }
+        @keyframes paperFloat { 0% { transform: translate(0, -14px) rotate(0deg); opacity: 0; } 12% { opacity: 0.95; } 80% { opacity: 0.85; } 100% { transform: translate(var(--drift, 10px), 86px) rotate(170deg); opacity: 0; } }
         @keyframes pearlDrop { 0% { transform: translateY(-70px) scale(0.7); opacity: 0; } 55% { opacity: 1; } 78% { transform: translateY(3px) scale(1.08); } 100% { transform: translateY(0) scale(1); opacity: 1; } }
         @keyframes strawPunch { 0% { transform: translateY(-50px) rotate(9deg); opacity: 0; } 65% { transform: translateY(7px) rotate(9deg); opacity: 1; } 100% { transform: translateY(0) rotate(9deg); opacity: 1; } }
         @keyframes popSparkle { 0% { transform: scale(0); opacity: 0; } 35% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(0.8) translateY(-12px); opacity: 0; } }
@@ -909,7 +1062,7 @@ export default function CozyPomodoro() {
 
           {/* illustration row: sleeping cat + companion bubble tea */}
           <div className="flex items-end justify-center gap-2 sm:gap-5">
-            <PixelCat awake={catAwake} theme={theme} />
+            <DeskCompanion state={catState} theme={theme} />
             <BubbleTea progress={progress} finished={finished} />
           </div>
 
