@@ -1,36 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Pause, RotateCcw, Plus, Trash2, Flower2, Coffee, Moon, Sparkles, Wind, X, Settings } from "lucide-react";
 
-/* ============================================================
-   COZY POMODORO v3 — Settings Drawer
-   New:
-   • ⚙️ Sliding pastel settings drawer (gear icon)
-   • ⏱ Custom timer durations
-   • 👗 Wardrobe: Glasses / Cozy Hat / Pink Bow
-   • ☕ Cafe Menu: tea flavor selector + ambient sound sliders
-   • 📖 About: tiny diary entry credits
-   ============================================================ */
-
-const DEFAULT_DURATIONS = { focus: 25, short: 5, long: 15 }; // minutes
+const DEFAULT_DURATIONS = { focus: 25, short: 5, long: 15 };
 
 const TEA_FLAVORS = {
   strawberry: {
-    name: "Strawberry",
-    emoji: "🍓",
+    name: "Strawberry", emoji: "🍓",
     gradient: "linear-gradient(to top, #F7B8CC 0%, #F9C9D9 55%, #FBDCE7 100%)",
     pearlColor: "radial-gradient(circle at 32% 28%, #7A5240, #4A3328)",
     milkLine: "rgba(255,255,255,0.7)",
   },
   matcha: {
-    name: "Matcha",
-    emoji: "🍵",
+    name: "Matcha", emoji: "🍵",
     gradient: "linear-gradient(to top, #5BAF7D 0%, #84C9A0 55%, #BADECC 100%)",
     pearlColor: "radial-gradient(circle at 32% 28%, #2E5E38, #1C3D24)",
     milkLine: "rgba(255,255,255,0.6)",
   },
   taro: {
-    name: "Taro",
-    emoji: "🫐",
+    name: "Taro", emoji: "🫐",
     gradient: "linear-gradient(to top, #9B7BC4 0%, #B99DE0 55%, #D8CCEF 100%)",
     pearlColor: "radial-gradient(circle at 32% 28%, #5A3B7A, #3D2B55)",
     milkLine: "rgba(255,255,255,0.65)",
@@ -101,162 +88,292 @@ function playChime() {
 }
 
 /* ============================================================
-   DeskCompanion — now accepts `accessory` prop
+   DeskCompanion — with wake-up animation sequence
+   wakePhase: "mask" → "eyes" → "wide" → "sitting"
    ============================================================ */
 function DeskCompanion({ state, theme, accessory }) {
   const fur = "#F6CDB8", furDark = "#EBB79D", inner = "#F9A8C0";
   const dark = theme.text, blush = "#F8A8B8";
   const wood = "#C9A075", woodDark = "#B08A5F";
 
+  const [wakePhase, setWakePhase] = useState("mask");
+  const wakeTimers = useRef([]);
+
+  useEffect(() => {
+    wakeTimers.current.forEach(clearTimeout);
+    wakeTimers.current = [];
+    if (state === "waking") {
+      setWakePhase("mask");
+      const t1 = setTimeout(() => setWakePhase("eyes"),    1800);
+      const t2 = setTimeout(() => setWakePhase("wide"),    3000);
+      const t3 = setTimeout(() => setWakePhase("sitting"), 4400);
+      wakeTimers.current = [t1, t2, t3];
+    }
+    return () => wakeTimers.current.forEach(clearTimeout);
+  }, [state]);
+
+  // ── Shared napping base (pillow + body) ──
+  const NappingBase = ({ showMask = true, maskAnim = "", showOpenEyes = false, eyeAnim = "", svgAnim = "" }) => (
+    <svg viewBox="0 0 24 16" width="200" height="133"
+      style={{ shapeRendering: "crispEdges", animation: svgAnim }}
+      aria-label="A pixel cat waking up from a nap" role="img">
+      {/* pillow */}
+      <rect x="2" y="10.5" width="20" height="4.5" rx="1.6" fill={theme.soft}/>
+      <rect x="3" y="11.2" width="18" height="0.5" rx="0.25" fill="rgba(255,255,255,0.7)"/>
+      <rect x="2.6" y="14.2" width="18.8" height="0.6" rx="0.3" fill="rgba(74,62,61,0.12)"/>
+      <rect x="1.4" y="10.2" width="1.2" height="1.2" fill={theme.soft}/>
+      <rect x="21.4" y="10.2" width="1.2" height="1.2" fill={theme.soft}/>
+      {/* ears */}
+      <rect x="6" y="2.6" width="2" height="2" fill={furDark}/>
+      <rect x="14" y="2.6" width="2" height="2" fill={furDark}/>
+      <rect x="6.5" y="3.2" width="1" height="1" fill={inner}/>
+      <rect x="14.5" y="3.2" width="1" height="1" fill={inner}/>
+      {/* accessories */}
+      {accessory === "hat" && (<>
+        <rect x="5" y="4.2" width="14" height="1" rx="0.4" fill="#D490B0"/>
+        <rect x="7.5" y="2.2" width="9" height="2.2" rx="0.5" fill="#E2A4C4"/>
+        <circle cx="12" cy="2.3" r="0.9" fill="white" opacity="0.9"/>
+        <rect x="8.5" y="3" width="7" height="0.4" rx="0.2" fill="#D490B0" opacity="0.5"/>
+      </>)}
+      {accessory === "bow" && (<>
+        <ellipse cx="9.5" cy="3.2" rx="2.2" ry="1.2" fill="#F4A7B9"/>
+        <ellipse cx="14.5" cy="3.2" rx="2.2" ry="1.2" fill="#F4A7B9"/>
+        <ellipse cx="9.5" cy="3.2" rx="1.15" ry="0.65" fill="#FBCEDA" opacity="0.6"/>
+        <ellipse cx="14.5" cy="3.2" rx="1.15" ry="0.65" fill="#FBCEDA" opacity="0.6"/>
+        <circle cx="12" cy="3.2" r="1" fill="#E2A4C4"/>
+        <circle cx="12" cy="3.2" r="0.4" fill="#D490B0"/>
+      </>)}
+      {/* head */}
+      <rect x="5" y="4.5" width="12" height="6" fill={fur}/>
+      {/* sleep mask — slides away */}
+      {showMask && (
+        <g style={{ animation: maskAnim, transformOrigin: "12px 7px" }}>
+          <rect x="6.4" y="5.8" width="9.2" height="2.2" rx="1" fill="#7A6080"/>
+          <rect x="5" y="6.2" width="1.4" height="0.7" rx="0.3" fill="#6F5E8C"/>
+          <rect x="15.6" y="6.2" width="1.4" height="0.7" rx="0.3" fill="#6F5E8C"/>
+          <rect x="9.6" y="6.1" width="1" height="0.6" rx="0.3" fill="#9B7EA8"/>
+          <rect x="12" y="6.1" width="1" height="0.6" rx="0.3" fill="#9B7EA8"/>
+          <rect x="10.4" y="6.5" width="0.7" height="0.5" fill="#FFF2CC"/>
+        </g>
+      )}
+      {/* open eyes after mask gone */}
+      {showOpenEyes && (<>
+        <g style={{ animation: eyeAnim, transformOrigin: "9.85px 6.3px" }}>
+          <rect x="9.4" y="5.8" width="0.9" height="1.1" rx="0.3" fill={dark}/>
+        </g>
+        <g style={{ animation: eyeAnim, transformOrigin: "13.85px 6.3px" }}>
+          <rect x="13.4" y="5.8" width="0.9" height="1.1" rx="0.3" fill={dark}/>
+        </g>
+        <rect x="9.55" y="5.88" width="0.3" height="0.3" fill="rgba(255,255,255,0.85)"/>
+        <rect x="13.55" y="5.88" width="0.3" height="0.3" fill="rgba(255,255,255,0.85)"/>
+      </>)}
+      {/* nose + blush */}
+      <rect x="10.5" y="8.8" width="1" height="0.4" fill={dark} opacity="0.6"/>
+      <rect x="6.4" y="8.3" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
+      <rect x="14.4" y="8.3" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
+      {/* body */}
+      <rect x="4" y="9.5" width="16" height="3" fill={fur}/>
+      <rect x="4" y="12" width="16" height="0.8" fill={furDark}/>
+      <rect x="16.5" y="11.6" width="3.4" height="1" fill={furDark}/>
+      <rect x="18.9" y="10.6" width="1" height="1.6" fill={furDark}/>
+      <rect x="8.6" y="11.6" width="2.2" height="1" fill={furDark}/>
+      <rect x="11.4" y="11.6" width="2.2" height="1" fill={furDark}/>
+    </svg>
+  );
+
+  // ── Studying SVG ──
+  const StudyingSvg = ({ extraStyle = {} }) => (
+    <svg viewBox="0 0 26 17" width="200" height="131"
+      style={{ shapeRendering: "crispEdges", ...extraStyle }}
+      aria-label="A focused pixel cat at a tiny wooden desk" role="img">
+      <g style={{ animation: "studyBob 3.4s ease-in-out infinite" }}>
+        <rect x="7.5" y="0.5" width="2" height="2" fill={furDark}/>
+        <rect x="15.5" y="0.5" width="2" height="2" fill={furDark}/>
+        <rect x="8" y="1.1" width="1" height="1" fill={inner}/>
+        <rect x="16" y="1.1" width="1" height="1" fill={inner}/>
+        {accessory === "hat" && (<>
+          <rect x="6" y="1.8" width="14" height="1.1" rx="0.4" fill="#D490B0"/>
+          <rect x="8" y="0.1" width="10" height="2" rx="0.5" fill="#E2A4C4"/>
+          <circle cx="13" cy="0.4" r="1" fill="white" opacity="0.9"/>
+          <rect x="8.5" y="1" width="9" height="0.4" rx="0.2" fill="#D490B0" opacity="0.5"/>
+        </>)}
+        {accessory === "bow" && (<>
+          <ellipse cx="10.2" cy="1.2" rx="2.3" ry="1.3" fill="#F4A7B9"/>
+          <ellipse cx="15.8" cy="1.2" rx="2.3" ry="1.3" fill="#F4A7B9"/>
+          <ellipse cx="10.2" cy="1.2" rx="1.2" ry="0.7" fill="#FBCEDA" opacity="0.6"/>
+          <ellipse cx="15.8" cy="1.2" rx="1.2" ry="0.7" fill="#FBCEDA" opacity="0.6"/>
+          <circle cx="13" cy="1.2" r="1.1" fill="#E2A4C4"/>
+          <circle cx="13" cy="1.2" r="0.45" fill="#D490B0"/>
+        </>)}
+        <rect x="6.5" y="2.5" width="12" height="6" fill={fur}/>
+        {accessory === "glasses" && (<>
+          <rect x="9" y="4.2" width="2.4" height="2" fill="rgba(255,255,255,0.45)" stroke={dark} strokeWidth="0.4"/>
+          <rect x="13.6" y="4.2" width="2.4" height="2" fill="rgba(255,255,255,0.45)" stroke={dark} strokeWidth="0.4"/>
+          <rect x="11.4" y="5" width="2.2" height="0.45" fill={dark}/>
+          <rect x="6.5" y="5" width="2.5" height="0.45" fill={dark} opacity="0.6"/>
+          <rect x="16" y="5" width="2.5" height="0.45" fill={dark} opacity="0.6"/>
+          <rect x="9.8" y="4.9" width="0.9" height="1" fill={dark}/>
+          <rect x="14.4" y="4.9" width="0.9" height="1" fill={dark}/>
+        </>)}
+        {accessory !== "glasses" && (<>
+          <rect x="9.8" y="5" width="0.9" height="1.1" rx="0.3" fill={dark}/>
+          <rect x="14.4" y="5" width="0.9" height="1.1" rx="0.3" fill={dark}/>
+          <rect x="10.3" y="5.1" width="0.3" height="0.3" fill="rgba(255,255,255,0.7)"/>
+          <rect x="14.9" y="5.1" width="0.3" height="0.3" fill="rgba(255,255,255,0.7)"/>
+        </>)}
+        <rect x="12.1" y="7.2" width="0.9" height="0.4" fill={dark} opacity="0.7"/>
+        <rect x="7.6" y="6.4" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
+        <rect x="16.2" y="6.4" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
+        <rect x="7.5" y="8.5" width="10" height="3.5" fill={fur}/>
+      </g>
+      <g style={{ animation: "pawWrite 1.1s ease-in-out infinite" }}>
+        <rect x="13.6" y="10.2" width="1.8" height="1.2" fill={furDark}/>
+        <rect x="14.6" y="9.3" width="0.6" height="1.4" fill="#E8B84A"/>
+        <rect x="14.6" y="9" width="0.6" height="0.4" fill={dark}/>
+      </g>
+      <rect x="9.4" y="10.4" width="1.8" height="1" fill={furDark}/>
+      <rect x="9" y="10.9" width="7" height="1.1" fill="#FFFDF8" stroke="rgba(74,62,61,0.25)" strokeWidth="0.25"/>
+      <rect x="9.8" y="11.25" width="3.4" height="0.3" fill="rgba(74,62,61,0.3)"/>
+      <rect x="9.8" y="11.75" width="2.2" height="0.3" fill="rgba(74,62,61,0.2)"/>
+      <rect x="4.5" y="12" width="16.5" height="1.4" fill={wood}/>
+      <rect x="4.5" y="13.1" width="16.5" height="0.4" fill={woodDark}/>
+      <rect x="5.5" y="13.4" width="1.3" height="3.4" fill={woodDark}/>
+      <rect x="18.6" y="13.4" width="1.3" height="3.4" fill={woodDark}/>
+    </svg>
+  );
+
   return (
     <div className="relative flex items-end justify-center" style={{ height: 132, width: 210 }}>
+
+      {/* Z floaties — only while napping (not waking) */}
       {state === "napping" && (
         <div className="absolute pointer-events-none" style={{ top: 4, right: "26%" }}>
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="absolute font-bold select-none" style={{ color: dark, opacity: 0.55, fontSize: 12 + i * 4, right: i * 14, animation: `zFloat 2.6s ease-in-out ${i * 0.7}s infinite` }}>z</span>
+          {[0,1,2].map(i => (
+            <span key={i} className="absolute font-bold select-none"
+              style={{ color: dark, opacity: 0.55, fontSize: 12 + i * 4, right: i * 14,
+                animation: `zFloat 2.6s ease-in-out ${i * 0.7}s infinite` }}>z</span>
           ))}
         </div>
       )}
-      {state === "napping" && (
-        <>{[{left:"10%",delay:"0s",drift:"14px"},{left:"32%",delay:"1.6s",drift:"-12px"},{left:"62%",delay:"0.8s",drift:"10px"},{left:"80%",delay:"2.4s",drift:"-16px"}].map((p,i)=>(
-          <div key={i} className="absolute pointer-events-none" style={{ left:p.left, top:-6, width:13, height:16, background:"#FFFDF8", border:"1px solid rgba(74,62,61,0.2)", borderRadius:2, ["--drift"]:p.drift, animation:`paperFloat 5.5s ease-in ${p.delay} infinite` }}>
-            <div style={{margin:"3px 2px 0",height:1.5,background:"rgba(74,62,61,0.25)"}}/>
-            <div style={{margin:"2px 2px 0",height:1.5,background:"rgba(74,62,61,0.18)",width:"70%"}}/>
-            <div style={{margin:"2px 2px 0",height:1.5,background:"rgba(74,62,61,0.18)",width:"50%"}}/>
-          </div>
-        ))}</>
+
+      {/* Sparkles — wide awake phase */}
+      {state === "waking" && wakePhase === "wide" && (
+        [{left:"10%",top:4,delay:"0s",size:17},{left:"74%",top:0,delay:"0.3s",size:20},
+         {left:"62%",top:28,delay:"0.7s",size:14},{left:"22%",top:30,delay:"1.1s",size:15},
+         {left:"46%",top:-2,delay:"0.5s",size:16}].map((s,i) => (
+          <span key={i} className="absolute select-none pointer-events-none"
+            style={{ left:s.left, top:s.top, fontSize:s.size,
+              animation:`wakeSparkle 1.6s ease-in-out ${s.delay} infinite` }}>✨</span>
+        ))
       )}
+
+      {/* Sparkles — sit-up burst */}
+      {state === "waking" && wakePhase === "sitting" && (
+        [{left:"8%",top:2,delay:"0s",size:16},{left:"80%",top:6,delay:"0.25s",size:18},
+         {left:"55%",top:-4,delay:"0.1s",size:14}].map((s,i) => (
+          <span key={i} className="absolute select-none pointer-events-none"
+            style={{ left:s.left, top:s.top, fontSize:s.size,
+              animation:`wakeSparkle 1.2s ease-out ${s.delay} 1 forwards` }}>⭐</span>
+        ))
+      )}
+
+      {/* Drinking sparkles */}
       {state === "drinking" && (
-        <>{[{left:"16%",top:4,delay:"0s",size:18},{left:"74%",top:0,delay:"0.4s",size:22},{left:"62%",top:32,delay:"0.9s",size:14},{left:"28%",top:36,delay:"1.3s",size:15},{left:"46%",top:-4,delay:"0.6s",size:16}].map((s,i)=>(
-          <span key={i} className="absolute select-none pointer-events-none" style={{ left:s.left, top:s.top, fontSize:s.size, animation:`sparkleTwinkle 1.8s ease-in-out ${s.delay} infinite` }}>✨</span>
-        ))}</>
-      )}
-
-      {/* ── STUDYING ── */}
-      {state === "studying" && (
-        <svg viewBox="0 0 26 17" width="200" height="131" style={{ shapeRendering: "crispEdges" }} aria-label="A focused pixel cat at a tiny wooden desk" role="img">
-          <g style={{ animation: "studyBob 3.4s ease-in-out infinite" }}>
-            {/* ears */}
-            <rect x="7.5" y="0.5" width="2" height="2" fill={furDark}/>
-            <rect x="15.5" y="0.5" width="2" height="2" fill={furDark}/>
-            <rect x="8" y="1.1" width="1" height="1" fill={inner}/>
-            <rect x="16" y="1.1" width="1" height="1" fill={inner}/>
-
-            {/* ── COZY HAT ── */}
-            {accessory === "hat" && (
-              <>
-                <rect x="6" y="1.8" width="14" height="1.1" rx="0.4" fill="#D490B0"/>
-                <rect x="8" y="0.1" width="10" height="2" rx="0.5" fill="#E2A4C4"/>
-                <circle cx="13" cy="0.4" r="1" fill="white" opacity="0.9"/>
-                <rect x="8.5" y="1" width="9" height="0.4" rx="0.2" fill="#D490B0" opacity="0.5"/>
-              </>
-            )}
-            {/* ── PINK BOW ── */}
-            {accessory === "bow" && (
-              <>
-                <ellipse cx="10.2" cy="1.2" rx="2.3" ry="1.3" fill="#F4A7B9"/>
-                <ellipse cx="15.8" cy="1.2" rx="2.3" ry="1.3" fill="#F4A7B9"/>
-                <ellipse cx="10.2" cy="1.2" rx="1.2" ry="0.7" fill="#FBCEDA" opacity="0.6"/>
-                <ellipse cx="15.8" cy="1.2" rx="1.2" ry="0.7" fill="#FBCEDA" opacity="0.6"/>
-                <circle cx="13" cy="1.2" r="1.1" fill="#E2A4C4"/>
-                <circle cx="13" cy="1.2" r="0.45" fill="#D490B0"/>
-              </>
-            )}
-
-            {/* head */}
-            <rect x="6.5" y="2.5" width="12" height="6" fill={fur}/>
-
-            {/* ── GLASSES (default) ── */}
-            {accessory === "glasses" && (
-              <>
-                <rect x="9" y="4.2" width="2.4" height="2" fill="rgba(255,255,255,0.45)" stroke={dark} strokeWidth="0.4"/>
-                <rect x="13.6" y="4.2" width="2.4" height="2" fill="rgba(255,255,255,0.45)" stroke={dark} strokeWidth="0.4"/>
-                <rect x="11.4" y="5" width="2.2" height="0.45" fill={dark}/>
-                <rect x="6.5" y="5" width="2.5" height="0.45" fill={dark} opacity="0.6"/>
-                <rect x="16" y="5" width="2.5" height="0.45" fill={dark} opacity="0.6"/>
-                <rect x="9.8" y="4.9" width="0.9" height="1" fill={dark}/>
-                <rect x="14.4" y="4.9" width="0.9" height="1" fill={dark}/>
-              </>
-            )}
-            {/* Normal eyes for hat / bow */}
-            {accessory !== "glasses" && (
-              <>
-                <rect x="9.8" y="5" width="0.9" height="1.1" rx="0.3" fill={dark}/>
-                <rect x="14.4" y="5" width="0.9" height="1.1" rx="0.3" fill={dark}/>
-                {/* tiny highlight */}
-                <rect x="10.3" y="5.1" width="0.3" height="0.3" fill="rgba(255,255,255,0.7)"/>
-                <rect x="14.9" y="5.1" width="0.3" height="0.3" fill="rgba(255,255,255,0.7)"/>
-              </>
-            )}
-            <rect x="12.1" y="7.2" width="0.9" height="0.4" fill={dark} opacity="0.7"/>
-            <rect x="7.6" y="6.4" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
-            <rect x="16.2" y="6.4" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
-            <rect x="7.5" y="8.5" width="10" height="3.5" fill={fur}/>
-          </g>
-          {/* writing paw */}
-          <g style={{ animation: "pawWrite 1.1s ease-in-out infinite" }}>
-            <rect x="13.6" y="10.2" width="1.8" height="1.2" fill={furDark}/>
-            <rect x="14.6" y="9.3" width="0.6" height="1.4" fill="#E8B84A"/>
-            <rect x="14.6" y="9" width="0.6" height="0.4" fill={dark}/>
-          </g>
-          <rect x="9.4" y="10.4" width="1.8" height="1" fill={furDark}/>
-          <rect x="9" y="10.9" width="7" height="1.1" fill="#FFFDF8" stroke="rgba(74,62,61,0.25)" strokeWidth="0.25"/>
-          <rect x="9.8" y="11.25" width="3.4" height="0.3" fill="rgba(74,62,61,0.3)"/>
-          <rect x="9.8" y="11.75" width="2.2" height="0.3" fill="rgba(74,62,61,0.2)"/>
-          <rect x="4.5" y="12" width="16.5" height="1.4" fill={wood}/>
-          <rect x="4.5" y="13.1" width="16.5" height="0.4" fill={woodDark}/>
-          <rect x="5.5" y="13.4" width="1.3" height="3.4" fill={woodDark}/>
-          <rect x="18.6" y="13.4" width="1.3" height="3.4" fill={woodDark}/>
-        </svg>
-      )}
-
-      {/* ── DRINKING ── */}
-      {state === "drinking" && (
-        <svg viewBox="0 0 22 15" width="190" height="129" style={{ shapeRendering:"crispEdges", animation:"happyBounce 1.6s ease-in-out infinite", transform:"rotate(4deg)" }} aria-label="A happy pixel cat reaching for its bubble tea" role="img">
-          <rect x="4" y="1" width="2" height="2" fill={furDark}/><rect x="12" y="1" width="2" height="2" fill={furDark}/>
-          <rect x="4.5" y="1.6" width="1" height="1" fill={inner}/><rect x="12.5" y="1.6" width="1" height="1" fill={inner}/>
-          {accessory === "hat" && (
-            <><rect x="3" y="2.6" width="13" height="0.9" rx="0.3" fill="#D490B0"/><rect x="5.5" y="0.4" width="9" height="2.4" rx="0.4" fill="#E2A4C4"/><circle cx="10" cy="0.5" r="0.9" fill="white" opacity="0.9"/></>
-          )}
-          {accessory === "bow" && (
-            <><ellipse cx="7.8" cy="0.9" rx="2.1" ry="1.2" fill="#F4A7B9"/><ellipse cx="12.2" cy="0.9" rx="2.1" ry="1.2" fill="#F4A7B9"/><circle cx="10" cy="0.9" r="1" fill="#E2A4C4"/><circle cx="10" cy="0.9" r="0.4" fill="#D490B0"/></>
-          )}
-          <rect x="3" y="3" width="12" height="6" fill={fur}/>
-          <rect x="5.6" y="5.2" width="0.6" height="0.5" fill={dark}/><rect x="6.2" y="4.8" width="0.6" height="0.5" fill={dark}/><rect x="6.8" y="5.2" width="0.6" height="0.5" fill={dark}/>
-          <rect x="10.2" y="5.2" width="0.6" height="0.5" fill={dark}/><rect x="10.8" y="4.8" width="0.6" height="0.5" fill={dark}/><rect x="11.4" y="5.2" width="0.6" height="0.5" fill={dark}/>
-          <rect x="8.3" y="6.6" width="1.4" height="1" fill={dark}/><rect x="8.6" y="7.1" width="0.8" height="0.5" fill={inner}/>
-          <rect x="4.4" y="6.6" width="1.2" height="0.7" fill={blush} opacity="0.9"/><rect x="12.4" y="6.6" width="1.2" height="0.7" fill={blush} opacity="0.9"/>
-          <rect x="2" y="8" width="16" height="5" fill={fur}/><rect x="2" y="12" width="16" height="1" fill={furDark}/>
-          <rect x="17" y="8.6" width="3.6" height="1.4" fill={fur}/><rect x="20.2" y="8.4" width="1.4" height="1.8" fill={furDark}/>
-          <rect x="4" y="11.4" width="2.4" height="1.2" fill={furDark}/>
-          <rect x="0.6" y="7.4" width="1.2" height="3.4" fill={furDark}><animate attributeName="y" values="7.4;6.8;7.4" dur="0.9s" repeatCount="indefinite"/></rect>
-          <rect x="1.4" y="6" width="1.4" height="0.35" fill={dark} opacity="0.45"/><rect x="15.2" y="6" width="1.4" height="0.35" fill={dark} opacity="0.45"/>
-        </svg>
+        [{left:"16%",top:4,delay:"0s",size:18},{left:"74%",top:0,delay:"0.4s",size:22},
+         {left:"62%",top:32,delay:"0.9s",size:14},{left:"28%",top:36,delay:"1.3s",size:15},
+         {left:"46%",top:-4,delay:"0.6s",size:16}].map((s,i) => (
+          <span key={i} className="absolute select-none pointer-events-none"
+            style={{ left:s.left, top:s.top, fontSize:s.size,
+              animation:`sparkleTwinkle 1.8s ease-in-out ${s.delay} infinite` }}>✨</span>
+        ))
       )}
 
       {/* ── NAPPING ── */}
       {state === "napping" && (
-        <svg viewBox="0 0 24 16" width="200" height="133" style={{ shapeRendering:"crispEdges", animation:"sleepBreathe 3.2s ease-in-out infinite" }} aria-label="A pixel cat napping on a plush pillow" role="img">
-          <rect x="2" y="10.5" width="20" height="4.5" rx="1.6" fill={theme.soft}/>
-          <rect x="3" y="11.2" width="18" height="0.5" rx="0.25" fill="rgba(255,255,255,0.7)"/>
-          <rect x="2.6" y="14.2" width="18.8" height="0.6" rx="0.3" fill="rgba(74,62,61,0.12)"/>
-          <rect x="1.4" y="10.2" width="1.2" height="1.2" fill={theme.soft}/><rect x="21.4" y="10.2" width="1.2" height="1.2" fill={theme.soft}/>
-          <rect x="6" y="2.6" width="2" height="2" fill={furDark}/><rect x="14" y="2.6" width="2" height="2" fill={furDark}/>
-          <rect x="6.5" y="3.2" width="1" height="1" fill={inner}/><rect x="14.5" y="3.2" width="1" height="1" fill={inner}/>
-          {accessory === "hat" && (
-            <><rect x="5" y="4.2" width="14" height="1" rx="0.4" fill="#D490B0"/><rect x="7.5" y="2.2" width="9" height="2.2" rx="0.5" fill="#E2A4C4"/><circle cx="12" cy="2.3" r="0.9" fill="white" opacity="0.9"/></>
-          )}
-          {accessory === "bow" && (
-            <><ellipse cx="9.5" cy="3.2" rx="2.2" ry="1.2" fill="#F4A7B9"/><ellipse cx="14.5" cy="3.2" rx="2.2" ry="1.2" fill="#F4A7B9"/><circle cx="12" cy="3.2" r="1" fill="#E2A4C4"/><circle cx="12" cy="3.2" r="0.4" fill="#D490B0"/></>
-          )}
-          <rect x="5" y="4.5" width="12" height="6" fill={fur}/>
-          <rect x="6.4" y="6" width="9.2" height="2" fill="#8E7BA8"/><rect x="5" y="6.6" width="1.4" height="0.5" fill="#6F5E8C"/><rect x="15.6" y="6.6" width="1.4" height="0.5" fill="#6F5E8C"/>
-          <rect x="10.4" y="6.6" width="0.7" height="0.7" fill="#FFF2CC"/>
-          <rect x="10.5" y="8.8" width="1" height="0.4" fill={dark} opacity="0.6"/>
-          <rect x="6.4" y="8.3" width="1.2" height="0.7" fill={blush} opacity="0.8"/><rect x="14.4" y="8.3" width="1.2" height="0.7" fill={blush} opacity="0.8"/>
-          <rect x="4" y="9.5" width="16" height="3" fill={fur}/><rect x="4" y="12" width="16" height="0.8" fill={furDark}/>
-          <rect x="16.5" y="11.6" width="3.4" height="1" fill={furDark}/><rect x="18.9" y="10.6" width="1" height="1.6" fill={furDark}/>
-          <rect x="8.6" y="11.6" width="2.2" height="1" fill={furDark}/><rect x="11.4" y="11.6" width="2.2" height="1" fill={furDark}/>
+        <NappingBase
+          showMask={true}
+          svgAnim="sleepBreathe 3.2s ease-in-out infinite"
+        />
+      )}
+
+      {/* ── WAKING: mask slides off ── */}
+      {state === "waking" && wakePhase === "mask" && (
+        <NappingBase
+          showMask={true}
+          maskAnim="maskSlide 1.6s cubic-bezier(0.55,0,1,0.45) forwards"
+          svgAnim="sleepBreathe 3.2s ease-in-out infinite"
+        />
+      )}
+
+      {/* ── WAKING: eyes flutter open ── */}
+      {state === "waking" && wakePhase === "eyes" && (
+        <NappingBase
+          showMask={false}
+          showOpenEyes={true}
+          eyeAnim="eyeFlutter 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards"
+          svgAnim=""
+        />
+      )}
+
+      {/* ── WAKING: wide awake bounce ── */}
+      {state === "waking" && wakePhase === "wide" && (
+        <NappingBase
+          showMask={false}
+          showOpenEyes={true}
+          eyeAnim="eyeWide 1.4s ease-in-out infinite"
+          svgAnim="happyBounce 1.2s ease-in-out infinite"
+        />
+      )}
+
+      {/* ── WAKING: sits up at desk ── */}
+      {state === "waking" && wakePhase === "sitting" && (
+        <StudyingSvg extraStyle={{ animation: "wakeSitUp 0.7s cubic-bezier(0.34,1.4,0.64,1) forwards" }}/>
+      )}
+
+      {/* ── STUDYING ── */}
+      {state === "studying" && (
+        <StudyingSvg extraStyle={{ animation: "studyBob 3.4s ease-in-out infinite" }}/>
+      )}
+
+      {/* ── DRINKING ── */}
+      {state === "drinking" && (
+        <svg viewBox="0 0 22 15" width="190" height="129"
+          style={{ shapeRendering:"crispEdges", animation:"happyBounce 1.6s ease-in-out infinite", transform:"rotate(4deg)" }}
+          aria-label="A happy pixel cat reaching for its bubble tea" role="img">
+          <rect x="4" y="1" width="2" height="2" fill={furDark}/><rect x="12" y="1" width="2" height="2" fill={furDark}/>
+          <rect x="4.5" y="1.6" width="1" height="1" fill={inner}/><rect x="12.5" y="1.6" width="1" height="1" fill={inner}/>
+          {accessory === "hat" && (<>
+            <rect x="3" y="2.6" width="13" height="0.9" rx="0.3" fill="#D490B0"/>
+            <rect x="5.5" y="0.4" width="9" height="2.4" rx="0.4" fill="#E2A4C4"/>
+            <circle cx="10" cy="0.5" r="0.9" fill="white" opacity="0.9"/>
+          </>)}
+          {accessory === "bow" && (<>
+            <ellipse cx="7.8" cy="0.9" rx="2.1" ry="1.2" fill="#F4A7B9"/>
+            <ellipse cx="12.2" cy="0.9" rx="2.1" ry="1.2" fill="#F4A7B9"/>
+            <circle cx="10" cy="0.9" r="1" fill="#E2A4C4"/>
+            <circle cx="10" cy="0.9" r="0.4" fill="#D490B0"/>
+          </>)}
+          <rect x="3" y="3" width="12" height="6" fill={fur}/>
+          <rect x="5.6" y="5.2" width="0.6" height="0.5" fill={dark}/>
+          <rect x="6.2" y="4.8" width="0.6" height="0.5" fill={dark}/>
+          <rect x="6.8" y="5.2" width="0.6" height="0.5" fill={dark}/>
+          <rect x="10.2" y="5.2" width="0.6" height="0.5" fill={dark}/>
+          <rect x="10.8" y="4.8" width="0.6" height="0.5" fill={dark}/>
+          <rect x="11.4" y="5.2" width="0.6" height="0.5" fill={dark}/>
+          <rect x="8.3" y="6.6" width="1.4" height="1" fill={dark}/>
+          <rect x="8.6" y="7.1" width="0.8" height="0.5" fill={inner}/>
+          <rect x="4.4" y="6.6" width="1.2" height="0.7" fill={blush} opacity="0.9"/>
+          <rect x="12.4" y="6.6" width="1.2" height="0.7" fill={blush} opacity="0.9"/>
+          <rect x="2" y="8" width="16" height="5" fill={fur}/>
+          <rect x="2" y="12" width="16" height="1" fill={furDark}/>
+          <rect x="17" y="8.6" width="3.6" height="1.4" fill={fur}/>
+          <rect x="20.2" y="8.4" width="1.4" height="1.8" fill={furDark}/>
+          <rect x="4" y="11.4" width="2.4" height="1.2" fill={furDark}/>
+          <rect x="0.6" y="7.4" width="1.2" height="3.4" fill={furDark}>
+            <animate attributeName="y" values="7.4;6.8;7.4" dur="0.9s" repeatCount="indefinite"/>
+          </rect>
+          <rect x="1.4" y="6" width="1.4" height="0.35" fill={dark} opacity="0.45"/>
+          <rect x="15.2" y="6" width="1.4" height="0.35" fill={dark} opacity="0.45"/>
         </svg>
       )}
     </div>
@@ -264,7 +381,7 @@ function DeskCompanion({ state, theme, accessory }) {
 }
 
 /* ============================================================
-   BubbleTea — now accepts `flavor` prop
+   BubbleTea
    ============================================================ */
 function BubbleTea({ progress, finished, flavor = "strawberry" }) {
   const fl = TEA_FLAVORS[flavor];
@@ -469,32 +586,9 @@ function SettingsDrawer({ open, onClose, customDurations, onApplyDurations, acce
 
   return (
     <>
-      {/* backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position:"fixed", inset:0, zIndex:88,
-          background: open ? "rgba(74,62,61,0.18)" : "transparent",
-          backdropFilter: open ? "blur(3px)" : "none",
-          pointerEvents: open ? "auto" : "none",
-          transition:"all 350ms ease",
-        }}
-      />
-
-      {/* drawer */}
-      <div
-        role="dialog" aria-modal="true" aria-label="Settings"
-        style={{
-          position:"fixed", top:0, right:0, bottom:0, width:340, zIndex:90,
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          transition:"transform 400ms cubic-bezier(0.34,1.06,0.64,1)",
-          background:"#FDF8F4",
-          overflowY:"auto",
-          boxShadow:"-24px 0 60px rgba(120,90,80,0.18)",
-          fontFamily: FONT_STACK,
-        }}
-      >
-        {/* header */}
+      <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:88, background: open ? "rgba(74,62,61,0.18)" : "transparent", backdropFilter: open ? "blur(3px)" : "none", pointerEvents: open ? "auto" : "none", transition:"all 350ms ease" }}/>
+      <div role="dialog" aria-modal="true" aria-label="Settings"
+        style={{ position:"fixed", top:0, right:0, bottom:0, width:340, zIndex:90, transform: open ? "translateX(0)" : "translateX(100%)", transition:"transform 400ms cubic-bezier(0.34,1.06,0.64,1)", background:"#FDF8F4", overflowY:"auto", boxShadow:"-24px 0 60px rgba(120,90,80,0.18)", fontFamily: FONT_STACK }}>
         <div style={{ position:"sticky", top:0, zIndex:5, display:"flex", justifyContent:"space-between", alignItems:"center", padding:"18px 22px 14px", background:"rgba(253,248,244,0.95)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(120,90,80,0.08)" }}>
           <div style={{ fontSize:16, fontWeight:800, color:"#4A3E3D", display:"flex", alignItems:"center", gap:8 }}>
             <Settings size={16} strokeWidth={2.2} style={{ color:"#F4A7B9" }}/> settings
@@ -503,10 +597,8 @@ function SettingsDrawer({ open, onClose, customDurations, onApplyDurations, acce
             <X size={16} strokeWidth={2.5}/>
           </button>
         </div>
-
         <div style={{ padding:"20px 18px 80px" }}>
-
-          {/* ── 1. TIME ADJUSTMENTS ── */}
+          {/* Timer */}
           <div style={card}>
             <div style={sectionTitle}><span>⏱</span> time adjustments</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -514,37 +606,24 @@ function SettingsDrawer({ open, onClose, customDurations, onApplyDurations, acce
                 <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
                   <label style={{ fontSize:12.5, fontWeight:600, color:"#7A6B65", minWidth:90 }}>{label}</label>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <input
-                      type="number" min={min} max={max}
-                      value={localDur[key]}
-                      onChange={e => setLocalDur(d => ({ ...d, [key]: e.target.value }))}
-                      style={{ width:56, textAlign:"center", borderRadius:12, border:"1.5px solid rgba(120,90,80,0.2)", background:"rgba(255,255,255,0.85)", color:"#4A3E3D", fontSize:14, fontWeight:700, padding:"7px 6px", fontFamily:FONT_STACK, outline:"none" }}
-                    />
+                    <input type="number" min={min} max={max} value={localDur[key]} onChange={e => setLocalDur(d => ({ ...d, [key]: e.target.value }))} style={{ width:56, textAlign:"center", borderRadius:12, border:"1.5px solid rgba(120,90,80,0.2)", background:"rgba(255,255,255,0.85)", color:"#4A3E3D", fontSize:14, fontWeight:700, padding:"7px 6px", fontFamily:FONT_STACK, outline:"none" }}/>
                     <span style={{ fontSize:11.5, color:"#9A8B85", fontWeight:500 }}>min</span>
                   </div>
                 </div>
               ))}
             </div>
-            <button
-              onClick={handleApply}
-              style={{ marginTop:14, width:"100%", padding:"10px", borderRadius:14, border:"none", background: applied ? "linear-gradient(135deg,#7FC8B8,#5BAF9A)" : "linear-gradient(135deg,#F4A7B9,#E2849E)", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 300ms ease", boxShadow:"0 6px 18px -8px rgba(244,167,185,0.7)", fontFamily:FONT_STACK }}
-            >
+            <button onClick={handleApply} style={{ marginTop:14, width:"100%", padding:"10px", borderRadius:14, border:"none", background: applied ? "linear-gradient(135deg,#7FC8B8,#5BAF9A)" : "linear-gradient(135deg,#F4A7B9,#E2849E)", color:"white", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 300ms ease", boxShadow:"0 6px 18px -8px rgba(244,167,185,0.7)", fontFamily:FONT_STACK }}>
               {applied ? "✓ applied!" : "apply changes"}
             </button>
           </div>
-
-          {/* ── 2. THE WARDROBE ── */}
+          {/* Wardrobe */}
           <div style={card}>
             <div style={sectionTitle}><span>👗</span> the wardrobe</div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
               {[["glasses","🤓","Reading Glasses"],["hat","🧢","Cozy Hat"],["bow","🎀","Pink Bow"]].map(([val, emoji, label]) => {
                 const active = accessory === val;
                 return (
-                  <button
-                    key={val}
-                    onClick={() => setAccessory(val)}
-                    style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:5, padding:"12px 6px", borderRadius:14, border: active ? "2px solid #F4A7B9" : "1.5px solid rgba(120,90,80,0.15)", background: active ? "rgba(244,167,185,0.14)" : "rgba(255,255,255,0.7)", cursor:"pointer", transition:"all 200ms ease", fontFamily:FONT_STACK }}
-                  >
+                  <button key={val} onClick={() => setAccessory(val)} style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:5, padding:"12px 6px", borderRadius:14, border: active ? "2px solid #F4A7B9" : "1.5px solid rgba(120,90,80,0.15)", background: active ? "rgba(244,167,185,0.14)" : "rgba(255,255,255,0.7)", cursor:"pointer", transition:"all 200ms ease", fontFamily:FONT_STACK }}>
                     <span style={{ fontSize:22 }}>{emoji}</span>
                     <span style={{ fontSize:10, fontWeight:700, color: active ? "#D4768E" : "#7A6B65", textAlign:"center", lineHeight:1.2 }}>{label}</span>
                   </button>
@@ -552,49 +631,34 @@ function SettingsDrawer({ open, onClose, customDurations, onApplyDurations, acce
               })}
             </div>
           </div>
-
-          {/* ── 3. CAFE MENU ── */}
+          {/* Cafe */}
           <div style={card}>
             <div style={sectionTitle}><span>☕</span> cafe menu</div>
-
-            {/* Tea flavor */}
             <p style={{ fontSize:11, fontWeight:600, color:"#9A8B85", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:8 }}>bubble tea flavor</p>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:18 }}>
               {Object.entries(TEA_FLAVORS).map(([key, fl]) => {
                 const active = teaFlavor === key;
                 return (
-                  <button
-                    key={key}
-                    onClick={() => setTeaFlavor(key)}
-                    style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, padding:"10px 4px", borderRadius:14, border: active ? "2px solid #F4A7B9" : "1.5px solid rgba(120,90,80,0.15)", background: active ? "rgba(244,167,185,0.12)" : "rgba(255,255,255,0.7)", cursor:"pointer", transition:"all 200ms ease", fontFamily:FONT_STACK }}
-                  >
+                  <button key={key} onClick={() => setTeaFlavor(key)} style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, padding:"10px 4px", borderRadius:14, border: active ? "2px solid #F4A7B9" : "1.5px solid rgba(120,90,80,0.15)", background: active ? "rgba(244,167,185,0.12)" : "rgba(255,255,255,0.7)", cursor:"pointer", transition:"all 200ms ease", fontFamily:FONT_STACK }}>
                     <span style={{ fontSize:20 }}>{fl.emoji}</span>
                     <span style={{ fontSize:10, fontWeight:700, color: active ? "#D4768E" : "#7A6B65" }}>{fl.name}</span>
                   </button>
                 );
               })}
             </div>
-
-            {/* Ambient sounds */}
             <p style={{ fontSize:11, fontWeight:600, color:"#9A8B85", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:10 }}>ambient sounds</p>
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               {[["rain","🌧","Rain"],["cafe","☕","Cafe"],["lofi","🎵","Lo-fi"]].map(([key, emoji, label]) => (
                 <div key={key} style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <span style={{ fontSize:16, width:22 }}>{emoji}</span>
                   <span style={{ fontSize:12, fontWeight:600, color:"#7A6B65", minWidth:38 }}>{label}</span>
-                  <input
-                    type="range" min="0" max="100"
-                    value={ambientVolumes[key]}
-                    onChange={e => setAmbientVolumes(v => ({ ...v, [key]: Number(e.target.value) }))}
-                    style={{ flex:1, accentColor:"#F4A7B9", cursor:"pointer", height:4 }}
-                  />
+                  <input type="range" min="0" max="100" value={ambientVolumes[key]} onChange={e => setAmbientVolumes(v => ({ ...v, [key]: Number(e.target.value) }))} style={{ flex:1, accentColor:"#F4A7B9", cursor:"pointer", height:4 }}/>
                   <span style={{ fontSize:11, color:"#9A8B85", minWidth:28, textAlign:"right", fontWeight:600 }}>{ambientVolumes[key]}%</span>
                 </div>
               ))}
             </div>
           </div>
-
-          {/* ── 4. ABOUT ── */}
+          {/* About */}
           <div style={{ ...card, background:"rgba(255,248,242,0.8)", borderColor:"rgba(244,167,185,0.25)" }}>
             <div style={sectionTitle}> about: </div>
             <div style={{ fontSize:12.5, color:"#6A5A54", lineHeight:1.9, fontStyle:"italic" }}>
@@ -603,18 +667,13 @@ function SettingsDrawer({ open, onClose, customDurations, onApplyDurations, acce
               <p style={{ marginBottom:8 }}>v1 was a simple timer. v3 has a wardrobe.</p>
               <p style={{ marginBottom:16 }}>made with 🌸 and too many late nights.</p>
               <div style={{ borderTop:"1px dashed rgba(244,167,185,0.4)", paddingTop:12, fontStyle:"normal" }}>
-                <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                  {[["designed & built by","trisha raye cararag"]].map(([l,v]) => (
-                    <div key={l} style={{ display:"flex", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:11, color:"#9A8B85", fontWeight:600 }}>{l}</span>
-                      <span style={{ fontSize:11, color:"#4A3E3D", fontWeight:700 }}>{v}</span>
-                    </div>
-                  ))}
+                <div style={{ display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ fontSize:11, color:"#9A8B85", fontWeight:600 }}>designed & built by</span>
+                  <span style={{ fontSize:11, color:"#4A3E3D", fontWeight:700 }}>trisha raye cararag</span>
                 </div>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </>
@@ -645,8 +704,6 @@ export default function CozyPomodoro() {
   const intervalRef = useRef(null);
   const listRef = useRef(null);
   const nextTaskId = useRef(2);
-
-  // Ambient audio refs
   const audioCtxRef = useRef(null);
   const gainNodesRef = useRef({ rain: null, cafe: null, lofi: null });
 
@@ -655,7 +712,6 @@ export default function CozyPomodoro() {
   const progress = 1 - secondsLeft / total;
   const phase = getDayPhase(hour);
 
-  // Keep ref in sync so callbacks can read latest durations
   useEffect(() => { customDurationsRef.current = customDurations; }, [customDurations]);
 
   /* ── timer ── */
@@ -701,22 +757,16 @@ export default function CozyPomodoro() {
         const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
         const data = buf.getChannelData(0);
         for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
-
-        // Rain: lowpass white noise
         const rainSrc = ctx.createBufferSource(); rainSrc.buffer = buf; rainSrc.loop = true;
         const rainF = ctx.createBiquadFilter(); rainF.type = "lowpass"; rainF.frequency.value = 1200;
         const rainG = ctx.createGain(); rainG.gain.value = 0;
         rainSrc.connect(rainF); rainF.connect(rainG); rainG.connect(ctx.destination); rainSrc.start();
         gainNodesRef.current.rain = rainG;
-
-        // Cafe: bandpass for gentle murmur
         const cafeSrc = ctx.createBufferSource(); cafeSrc.buffer = buf; cafeSrc.loop = true;
         const cafeF = ctx.createBiquadFilter(); cafeF.type = "bandpass"; cafeF.frequency.value = 320; cafeF.Q.value = 0.4;
         const cafeG = ctx.createGain(); cafeG.gain.value = 0;
         cafeSrc.connect(cafeF); cafeF.connect(cafeG); cafeG.connect(ctx.destination); cafeSrc.start();
         gainNodesRef.current.cafe = cafeG;
-
-        // Lofi: soft chord oscillators
         const lofiG = ctx.createGain(); lofiG.gain.value = 0; lofiG.connect(ctx.destination);
         [130.81, 164.81, 196.00, 246.94].forEach(freq => {
           const osc = ctx.createOscillator(); const og = ctx.createGain();
@@ -734,9 +784,7 @@ export default function CozyPomodoro() {
   }, [ambientVolumes]);
 
   useEffect(() => {
-    return () => {
-      if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch(e){} }
-    };
+    return () => { if (audioCtxRef.current) { try { audioCtxRef.current.close(); } catch(e){} } };
   }, []);
 
   /* ── mode / reset ── */
@@ -780,8 +828,19 @@ export default function CozyPomodoro() {
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
-  const catState = mode !== "focus" ? "napping" : finished ? "drinking" : "studying";
-  const statusLine = finished ? (mode==="focus" ? "Session complete — you earned a break! ✨" : "Break's over — ready when you are 🌷") : isRunning ? (mode==="focus" ? "Shhh… deep focus in progress" : "Resting and recharging…") : "Press start when you're ready";
+
+  // ── cat state: "waking" triggers the wake-up sequence when a break ends ──
+  const catState = mode !== "focus"
+    ? (finished ? "waking" : "napping")
+    : (finished ? "drinking" : "studying");
+
+  const statusLine = finished
+    ? (mode === "focus"
+        ? "Session complete — you earned a break! ✨"
+        : "Rise and shine — ready to focus again? 🌸")
+    : isRunning
+      ? (mode === "focus" ? "Shhh… deep focus in progress" : "Resting and recharging…")
+      : "Press start when you're ready";
 
   return (
     <div className="min-h-screen w-full flex flex-col" style={{ background:`linear-gradient(180deg, #FAF7F2 0%, ${theme.container} 100%)`, fontFamily: FONT_STACK, color: theme.text, transition:"background 900ms ease, color 700ms ease" }}>
@@ -810,6 +869,11 @@ export default function CozyPomodoro() {
         @keyframes pearlDrop { 0%{transform:translateY(-70px) scale(0.7);opacity:0;}55%{opacity:1;}78%{transform:translateY(3px) scale(1.08);}100%{transform:translateY(0) scale(1);opacity:1;} }
         @keyframes strawPunch { 0%{transform:translateY(-50px) rotate(9deg);opacity:0;}65%{transform:translateY(7px) rotate(9deg);opacity:1;}100%{transform:translateY(0) rotate(9deg);opacity:1;} }
         @keyframes popSparkle { 0%{transform:scale(0);opacity:0;}35%{transform:scale(1.5);opacity:1;}100%{transform:scale(0.8) translateY(-12px);opacity:0;} }
+        @keyframes maskSlide { 0%{transform:translateY(0) rotate(0deg);opacity:1;}60%{transform:translateY(10px) rotate(-18deg);opacity:0.7;}100%{transform:translateY(28px) rotate(-32deg);opacity:0;} }
+        @keyframes eyeFlutter { 0%{transform:scaleY(0.05);}40%{transform:scaleY(1.35);}70%{transform:scaleY(0.85);}100%{transform:scaleY(1);} }
+        @keyframes eyeWide { 0%,100%{transform:scaleY(1);}50%{transform:scaleY(1.2) translateY(-0.4px);} }
+        @keyframes wakeSitUp { 0%{transform:translateY(9px) rotate(3deg);opacity:0.3;}65%{transform:translateY(-3px) rotate(-1deg);opacity:1;}100%{transform:translateY(0) rotate(0deg);opacity:1;} }
+        @keyframes wakeSparkle { 0%{transform:scale(0) rotate(-20deg);opacity:0;}50%{transform:scale(1.5) rotate(10deg);opacity:1;}100%{transform:scale(0.85) translateY(-10px);opacity:0;} }
         input[type=range] { -webkit-appearance:none; height:4px; border-radius:4px; background: rgba(120,90,80,0.15); }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:#F4A7B9; cursor:pointer; box-shadow:0 2px 6px rgba(244,167,185,0.5); }
         input[type=number]::-webkit-inner-spin-button { opacity:0; }
@@ -828,12 +892,7 @@ export default function CozyPomodoro() {
           <button onClick={() => setBreathing(true)} className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold active:scale-95" style={{ background:"rgba(255,255,255,0.7)", color:theme.text, boxShadow:"0 8px 20px -10px rgba(120,90,80,0.35)", transition:"transform 150ms ease" }}>
             <Wind size={16} strokeWidth={2.5} aria-hidden="true"/> Breathe
           </button>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Open settings"
-            className="flex items-center justify-center rounded-2xl p-2.5 active:scale-95"
-            style={{ background:"rgba(255,255,255,0.7)", color:theme.text, boxShadow:"0 8px 20px -10px rgba(120,90,80,0.35)", transition:"transform 150ms ease" }}
-          >
+          <button onClick={() => setSettingsOpen(true)} aria-label="Open settings" className="flex items-center justify-center rounded-2xl p-2.5 active:scale-95" style={{ background:"rgba(255,255,255,0.7)", color:theme.text, boxShadow:"0 8px 20px -10px rgba(120,90,80,0.35)", transition:"transform 150ms ease" }}>
             <Settings size={18} strokeWidth={2.3}/>
           </button>
         </div>
@@ -921,7 +980,6 @@ export default function CozyPomodoro() {
 
       {/* ── OVERLAYS ── */}
       {breathing && <BreathingGuide theme={theme} phase={phase} onClose={() => setBreathing(false)}/>}
-
       <SettingsDrawer
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
